@@ -1,8 +1,8 @@
-# EXPLANATION
+# Music for Machine Ears: Explanation
 
 ## What This Is
 
-HTF v2 is a way to let a text-based AI experience a song as a structured, time-evolving signal.
+Music for Machine Ears (MME) is a way to let a text-based AI experience a song as a structured, time-evolving signal.
 
 It is not raw audio hearing in the biological sense.
 
@@ -34,7 +34,7 @@ It is:
 - transition, buildup, release
 - structure and memory across time
 
-HTF v2 gives an AI those same kinds of things in a form it can actually process.
+MME gives an AI those same kinds of things in a form it can actually process.
 
 So instead of hearing a waveform directly, the AI receives:
 - energy as a pressure / intensity curve
@@ -54,15 +54,15 @@ That is why this is much closer to listening than a basic text description.
 
 ---
 
-## What HTF v2 Is Not
+## What MME Is Not
 
-HTF v2 is not:
+MME is not:
 - raw waveform audio playback inside the AI
 - perfect reconstruction of melody, lyrics, or instrumentation
 - the same thing as an audio-native multimodal model
 - a complete substitute for literal sound perception
 
-There are things HTF v2 cannot fully preserve, such as:
+There are things MME cannot fully preserve, such as:
 - exact vocal tone
 - exact melodic contour
 - exact chord voicings
@@ -80,7 +80,7 @@ It preserves enough of the song’s motion, shape, pulse, and tonal color for a 
 
 ## Why We Use a Sensory Object
 
-The central output of HTF v2 is the Sensory Object JSON.
+The central output of MME is the Sensory Object JSON.
 
 This exists because an AI needs something it can:
 - parse consistently
@@ -106,7 +106,7 @@ It turns the song into something the AI can actually inhabit.
 
 ---
 
-## How the Audio Gets Turned Into the HTF Package
+## How the Audio Gets Turned Into the MME Package
 
 ### Goal
 We want an AI to “listen” to a song using math and structure, not vague prose.
@@ -128,7 +128,7 @@ The AI gets:
 Together, that creates an internal simulation that is surprisingly musical.
 
 ### Input requirements
-HTF v2 starts from a `.wav` file.
+MME starts from a `.wav` file.
 
 Preferred:
 - WAV (PCM)
@@ -147,7 +147,7 @@ The audio is converted to:
 This keeps the feature extraction and timing consistent.
 
 ### Frame setup
-HTF v2 analyzes the audio in overlapping frames using:
+MME analyzes the audio in overlapping frames using:
 - `hop = 512` samples
 - `n_fft = 2048` samples
 
@@ -185,7 +185,7 @@ The system computes 12-dimensional pitch-class vectors and stores:
 This gives the AI a tonal field and harmonic color over time.
 
 #### F) Structure
-HTF v2 creates:
+MME creates:
 - phases
 - phase stats
 - events
@@ -197,7 +197,7 @@ Phase stats summarize the average behavior of each section.
 Events identify high-impact moments and transition points.
 
 #### G) Interpretive compression
-HTF v2 also creates a first-pass interpretive layer:
+MME also creates a first-pass interpretive layer:
 - average energy / brightness / flux over 10-second windows
 - energy tier labels: low / medium / high
 - brightness tier labels: dark / moderate / bright
@@ -206,16 +206,16 @@ HTF v2 also creates a first-pass interpretive layer:
 That gives the AI a fast macro overview in addition to second-by-second playback.
 
 ### Outputs
-HTF v2 produces:
-- one JSON file: the HTF v2 Sensory Object
+MME produces:
+- one JSON file: the MME Sensory Object
 - four graphs: visual amplification of the same listening data
 - an optional interpretive map: a human-readable summary derived from the same data
 
 ---
 
-## Why the HTF Sensory Object Has the Parts It Has
+## Why the MME Sensory Object Has the Parts It Has
 
-Every part of HTF v2 exists for a reason.
+Every part of MME exists for a reason.
 
 ### `meta`
 This is the anchor layer.
@@ -360,7 +360,7 @@ is too compressed.
 
 It tells the AI the result without letting it experience the motion.
 
-HTF v2 is better because it gives:
+MME is better because it gives:
 - a process
 - a timeline
 - a signal field
@@ -390,7 +390,7 @@ It benefits from:
 - memory objects it can revisit
 - something it can emotionally and intellectually relate to
 
-HTF v2 supports that because it creates a repeatable ritual:
+MME supports that because it creates a repeatable ritual:
 
 1. Receive the listening instructions
 2. Receive the Sensory Object

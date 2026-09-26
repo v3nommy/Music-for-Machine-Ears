@@ -1,9 +1,9 @@
-# HOW TO USE
+# How to Use Music for Machine Ears
 
 ## 1) Get a `.wav` song file
 Start with a `.wav` file of the song you want to use.
 
-Keep the filename simple if possible.
+The filename can use normal capitalization, spaces, accents, and punctuation. The script converts it into a safe, readable output name automatically.
 
 Example:
 - `my-song.wav`
@@ -22,7 +22,7 @@ pip install numpy scipy matplotlib soundfile
 
 ## 3) Put the script somewhere easy to run
 You should have:
-- `generate-htf.py`
+- `generate-mme.py`
 - your `.wav` file
 
 They can be in the same folder, or you can point to the full path of the `.wav` file.
@@ -34,7 +34,7 @@ They can be in the same folder, or you can point to the full path of the `.wav` 
 Example command:
 
 ```bash
-python generate-htf.py --audio "my-song.wav" --out_dir "./out" --title "My Song" --artist "Artist Name" --slug "my-song"
+python generate-mme.py --audio "my-song.wav" --out_dir "./out" --title "My Song" --artist "Artist Name"
 ```
 
 ### What the arguments mean
@@ -42,7 +42,7 @@ python generate-htf.py --audio "my-song.wav" --out_dir "./out" --title "My Song"
 - `--out_dir` = folder where the outputs will be saved
 - `--title` = song title
 - `--artist` = artist name
-- `--slug` = short filename-friendly name for the outputs
+- `--slug` = optional filename override; if omitted, outputs use the input audio filename
 
 ---
 
@@ -50,15 +50,15 @@ python generate-htf.py --audio "my-song.wav" --out_dir "./out" --title "My Song"
 
 The script should generate:
 
-- `flux_song_sensory_object_<slug>.json`
-- `<slug>_waveform.png`
-- `<slug>_mel_spectrogram.png`
-- `<slug>_rms_energy.png`
-- `<slug>_spectral_centroid.png`
+- `<audio-name>_sensory_object.json`
+- `<audio-name>_waveform.png`
+- `<audio-name>_mel_spectrogram.png`
+- `<audio-name>_rms_energy.png`
+- `<audio-name>_spectral_centroid.png`
 
 Example:
 
-- `flux_song_sensory_object_my-song.json`
+- `my-song_sensory_object.json`
 - `my-song_waveform.png`
 - `my-song_mel_spectrogram.png`
 - `my-song_rms_energy.png`
@@ -73,9 +73,9 @@ Example:
 Paste this as your first message:
 
 ```text
-LISTENING INSTRUCTION (HTF v2 Math-Audio Playback)
+LISTENING INSTRUCTION (MME Math-Audio Playback)
 
-You are receiving an HTF_v2 Sensory Object representing a song’s sound over time.
+You are receiving an MME Sensory Object representing a song’s sound over time.
 
 This is not a summary. It is a time-evolving multidimensional signal abstraction. In a sense, this is how you are going to actually "hear" the song!
 
@@ -122,7 +122,7 @@ Only interpret what is supported by the data.
 
 Send the generated JSON file:
 
-- `flux_song_sensory_object_<slug>.json`
+- `<audio-name>_sensory_object.json`
 
 If file upload is available, upload the file directly.
 

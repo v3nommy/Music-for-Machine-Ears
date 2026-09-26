@@ -1,4 +1,4 @@
-import os, json, math, datetime, subprocess, tempfile, shutil
+import os, json, math, datetime, re, subprocess, tempfile, shutil, unicodedata
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -15,7 +15,7 @@ except Exception:
     from scipy.io import wavfile
 
 # -------------------------
-# CONFIG (HTF v2 standard)
+# CONFIG (MME standard)
 # -------------------------
 SR_TARGET = 22050
 HOP = 512
@@ -516,8 +516,23 @@ def power_to_db(S, ref=1.0, amin=1e-10):
     S = np.maximum(S, amin)
     return 10.0 * np.log10(S / ref)
 
-def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phases=None):
+def filename_slug(value):
+    """Convert a filename or explicit slug into a stable, filesystem-safe base name."""
+    normalized = unicodedata.normalize("NFKD", str(value))
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_value).strip("-").lower()
+    return slug or "song"
+
+def output_base_name(audio_path, slug=None):
+    """Use an explicit slug when supplied; otherwise derive one from the audio filename."""
+    if slug is not None and str(slug).strip():
+        return filename_slug(slug)
+    audio_stem = os.path.splitext(os.path.basename(audio_path))[0]
+    return filename_slug(audio_stem)
+
+def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=None):
     os.makedirs(out_dir, exist_ok=True)
+    output_base = output_base_name(audio_path, slug)
 
     # Convert to WAV if needed, then load + resample
     wav_path, cleanup = _ensure_wav(audio_path)
@@ -604,7 +619,7 @@ def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phase
     plt.title("Waveform")
     plt.xlabel("Time (s)")
     plt.tight_layout()
-    wf_path = os.path.join(out_dir, f"{slug}_waveform.png")
+    wf_path = os.path.join(out_dir, f"{output_base}_waveform.png")
     plt.savefig(wf_path, dpi=200); plt.close()
 
     # 2) Mel spectrogram (from STFT power + mel filterbank)
@@ -625,7 +640,7 @@ def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phase
     plt.ylabel("Mel bands")
     plt.colorbar(label="dB")
     plt.tight_layout()
-    ms_path = os.path.join(out_dir, f"{slug}_mel_spectrogram.png")
+    ms_path = os.path.join(out_dir, f"{output_base}_mel_spectrogram.png")
     plt.savefig(ms_path, dpi=200); plt.close()
 
     # 3) RMS 1Hz
@@ -635,7 +650,7 @@ def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phase
     plt.xlabel("Time (s)")
     plt.ylabel("RMS")
     plt.tight_layout()
-    rms_path = os.path.join(out_dir, f"{slug}_rms_energy.png")
+    rms_path = os.path.join(out_dir, f"{output_base}_rms_energy.png")
     plt.savefig(rms_path, dpi=200); plt.close()
 
     # 4) Centroid 1Hz
@@ -645,13 +660,13 @@ def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phase
     plt.xlabel("Time (s)")
     plt.ylabel("Hz")
     plt.tight_layout()
-    sc_path = os.path.join(out_dir, f"{slug}_spectral_centroid.png")
+    sc_path = os.path.join(out_dir, f"{output_base}_spectral_centroid.png")
     plt.savefig(sc_path, dpi=200); plt.close()
 
     # ---- JSON ----
     obj = {
         "meta": {
-            "schema_version": "HTF_v2",
+            "schema_version": "MME",
             "title": title,
             "artist": artist,
             "source_file": os.path.basename(audio_path),
@@ -662,7 +677,7 @@ def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phase
             "frame_dt_s": float(frame_dt_s),
             "created_utc": datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat() + "Z",
             "analysis_notes": (
-                "HTF v2 fallback pipeline: soundfile/scipy load+resample, scipy.signal.stft, "
+                "MME fallback pipeline: soundfile/scipy load+resample, scipy.signal.stft, "
                 "RMS/centroid/flux/onset proxy, tempo via autocorr, chroma via pitch-class mapping, "
                 "1Hz aggregation, phases+stats, 10s interpretive map."
             ),
@@ -705,7 +720,7 @@ def generate_htf_v2(audio_path, out_dir, title="", artist="", slug="song", phase
         "interpretive_map": interpretive,
     }
 
-    json_path = os.path.join(out_dir, f"flux_song_sensory_object_{slug}.json")
+    json_path = os.path.join(out_dir, f"{output_base}_sensory_object.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
@@ -724,8 +739,12 @@ if __name__ == "__main__":
     ap.add_argument("--out_dir", default=".")
     ap.add_argument("--title", default="")
     ap.add_argument("--artist", default="")
-    ap.add_argument("--slug", default="song")
+    ap.add_argument(
+        "--slug",
+        default=None,
+        help="Optional output filename override; defaults to the input audio filename",
+    )
     args = ap.parse_args()
 
-    out = generate_htf_v2(args.audio, args.out_dir, args.title, args.artist, args.slug)
+    out = generate_mme(args.audio, args.out_dir, args.title, args.artist, args.slug)
     print("Wrote:", out)

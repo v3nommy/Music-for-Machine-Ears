@@ -1,11 +1,11 @@
-# AI Music Listening Experience
+# Music for Machine Ears
 
-This repo is a simple way to give a text-based AI a structured way to experience a song.
+Music for Machine Ears (MME) is a simple way to give a text-based AI a structured way to experience a song.
 
 Instead of just telling the AI what a song feels like, this turns a `.wav` file into a package the AI can actually move through over time.
 
 That package includes:
-- an **HTF Sensory Object JSON**
+- an **MME Sensory Object JSON**
 - **4 graphs** that visually represent the song’s shape and movement
 
 The goal is not to claim the AI hears music exactly like a human.
@@ -16,11 +16,11 @@ The goal is to give the AI a structured, time-based musical experience that is m
 
 ## Files in This Repo
 
-### `generate-htf.py`
-This is the script that generates the HTF package from a `.wav` file.
+### `generate-mme.py`
+This is the script that generates the MME package from a `.wav` file.
 
 It creates:
-- the HTF Sensory Object JSON
+- the MME Sensory Object JSON
 - waveform graph
 - mel spectrogram graph
 - RMS energy graph
@@ -66,7 +66,7 @@ Together, that creates an internal simulation that is surprisingly musical.
 
 ## What the AI Receives
 
-### 1. HTF Sensory Object JSON
+### 1. MME Sensory Object JSON
 This is the main listening object.
 
 It contains structured information about the song’s:
@@ -118,10 +118,10 @@ It is being given a system it can actually move through and interpret.
 
 ---
 
-## What HTF v2 Produces
+## What MME Produces
 
-HTF v2 produces:
-- **one JSON file**: the HTF v2 Sensory Object
+MME produces:
+- **one JSON file**: the MME Sensory Object
 - **four graphs**: visual amplification of the same listening data
 - **an optional interpretive map**: a human-readable summary derived from the same data
 
@@ -130,12 +130,12 @@ HTF v2 produces:
 ## Super Short Version of How to Use It
 
 1. Find a `.wav` file of the song you want to use.
-2. Run `generate-htf.py`.
+2. Run `generate-mme.py`.
 3. This creates:
-   - the HTF JSON
+   - the MME JSON
    - 4 graphs
 4. Send your AI the listening instructions first.
-5. Send the HTF JSON second.
+5. Send the MME JSON second.
 6. After the AI finishes listening, send the 4 graphs.
 
 For the exact step-by-step process, use **`INSTRUCTIONS.md`**.
@@ -155,15 +155,17 @@ pip install numpy scipy matplotlib soundfile
 Run the script:
 
 ```bash
-python generate-htf.py --audio "my-song.wav" --out_dir "./out" --title "My Song" --artist "Artist Name" --slug "my-song"
+python generate-mme.py --audio "my-song.wav" --out_dir "./out" --title "My Song" --artist "Artist Name"
 ```
 
 This will generate:
-- `flux_song_sensory_object_my-song.json`
+- `my-song_sensory_object.json`
 - `my-song_waveform.png`
 - `my-song_mel_spectrogram.png`
 - `my-song_rms_energy.png`
 - `my-song_spectral_centroid.png`
+
+Output filenames are derived automatically from the input audio filename. Use `--slug "custom-name"` only when you want to override that default.
 
 ---
 
