@@ -31,6 +31,15 @@ SENSORY_CHROMA_OCTAVE_WIDTH = 2.0
 KEY_CHROMA_OCTAVE_CENTER = 3.5
 KEY_CHROMA_OCTAVE_WIDTH = 1.5
 
+# Experimental global-key reliability gate. These operate on the dedicated
+# lower/mid key-analysis chroma, not on the listener-facing sensory chroma.
+KEY_RELIABILITY_MIN_DURATION_S = 8.0
+KEY_RELIABILITY_TONAL_EVIDENCE_GATE = 0.04
+KEY_RELIABILITY_CHROMA_DISPERSION_GATE = 0.04
+KEY_RELIABILITY_MAX_SEGMENT_RANK = 5
+KEY_RELIABILITY_RELATIVE_MARGIN_GATE = 0.04
+KEY_RELIABILITY_BIN_S = 2.0
+
 # Native rhythm tracker defaults. These are intentionally few and centralized so
 # the public skill stays lightweight; the external harness is the place to tune them.
 RHYTHM_GAMMA = 100.0
@@ -537,18 +546,101 @@ def _profile_correlation(chroma_vec, profile):
     return float(np.dot(a, b) / denom)
 
 
-def estimate_key_from_chroma(chroma_mean):
+def _key_profile_scores(chroma_mean):
     cm = normalize_chroma(np.array(chroma_mean, dtype=float))
-    best = (-2.0, None, None)
+    scores = []
     for i in range(12):
-        score = _profile_correlation(cm, np.roll(MAJOR_PROFILE, i))
-        if score > best[0]:
-            best = (score, i, "major")
+        scores.append((_profile_correlation(cm, np.roll(MAJOR_PROFILE, i)), i, "major"))
     for i in range(12):
-        score = _profile_correlation(cm, np.roll(MINOR_PROFILE, i))
-        if score > best[0]:
-            best = (score, i, "minor")
-    idx, mode = best[1], best[2]
+        scores.append((_profile_correlation(cm, np.roll(MINOR_PROFILE, i)), i, "minor"))
+    return scores
+
+
+def _best_key_profile(chroma_mean):
+    return max(_key_profile_scores(chroma_mean), key=lambda item: item[0])
+
+
+def _relative_key_profile_index(idx, mode):
+    # Major -> relative minor is down three semitones; minor -> relative major is up three.
+    if mode == "major":
+        return (idx + 9) % 12, "minor"
+    return (idx + 3) % 12, "major"
+
+
+def _key_profile_rank(chroma_mean, target_idx, target_mode):
+    ranked = sorted(_key_profile_scores(chroma_mean), key=lambda item: item[0], reverse=True)
+    for rank, (_, idx, mode) in enumerate(ranked, start=1):
+        if idx == target_idx and mode == target_mode:
+            return rank
+    return len(ranked)
+
+
+def key_reliability(key_chroma, t_frames, duration_s, best_score, best_idx, best_mode):
+    """Return whether the global key estimate has enough stable tonal evidence.
+
+    Reliability here means MME has sufficient evidence for one global key scalar.
+    It does not claim the piece never tonicizes, modulates, or admits another
+    music-theoretical interpretation.
+    """
+    if duration_s < KEY_RELIABILITY_MIN_DURATION_S:
+        return False, "Audio is too short for a reliable global key estimate."
+
+    chroma_mean = normalize_chroma(np.mean(key_chroma, axis=1))
+    mean_bin = float(np.mean(chroma_mean))
+    peak_mean = float(np.max(chroma_mean) / (mean_bin + 1e-12)) if chroma_mean.size else 0.0
+    tonal_evidence = max(float(best_score), 0.0) * max(peak_mean - 1.0, 0.0)
+
+    bins = []
+    for start in np.arange(0.0, duration_s, KEY_RELIABILITY_BIN_S):
+        end = min(start + KEY_RELIABILITY_BIN_S, duration_s)
+        mask = (t_frames >= start) & (t_frames < end)
+        if not np.any(mask):
+            continue
+        value = np.mean(key_chroma[:, mask], axis=1)
+        if float(np.sum(value)) <= 1e-12:
+            continue
+        bins.append(normalize_chroma(value))
+
+    if len(bins) < 2:
+        return False, "Insufficient tonal evidence across time for a reliable global key estimate."
+
+    bins_arr = np.asarray(bins, dtype=float)
+    bin_center = np.mean(bins_arr, axis=0)
+    chroma_dispersion = float(np.mean(np.linalg.norm(bins_arr - bin_center, axis=1)))
+
+    relative_idx, relative_mode = _relative_key_profile_index(best_idx, best_mode)
+    score_map = {(idx, mode): float(score) for score, idx, mode in _key_profile_scores(chroma_mean)}
+    relative_margin = float(best_score) - score_map[(relative_idx, relative_mode)]
+
+    segment_count = 4 if duration_s >= 16.0 else 2
+    segment_ranks = []
+    for segment in range(segment_count):
+        start = duration_s * segment / segment_count
+        end = duration_s * (segment + 1) / segment_count
+        mask = (t_frames >= start) & (t_frames < end)
+        if not np.any(mask):
+            continue
+        value = np.mean(key_chroma[:, mask], axis=1)
+        if float(np.sum(value)) <= 1e-12:
+            continue
+        segment_ranks.append(_key_profile_rank(value, best_idx, best_mode))
+
+    if len(segment_ranks) < 2:
+        return False, "Insufficient tonal coverage across the track for a reliable global key estimate."
+
+    reliable = (
+        tonal_evidence >= KEY_RELIABILITY_TONAL_EVIDENCE_GATE
+        and chroma_dispersion >= KEY_RELIABILITY_CHROMA_DISPERSION_GATE
+        and max(segment_ranks) <= KEY_RELIABILITY_MAX_SEGMENT_RANK
+        and relative_margin >= KEY_RELIABILITY_RELATIVE_MARGIN_GATE
+    )
+    if reliable:
+        return True, None
+    return False, "Insufficient stable tonal evidence for a reliable global key estimate."
+
+
+def estimate_key_from_chroma(chroma_mean):
+    best_score, idx, mode = _best_key_profile(chroma_mean)
     key_names = MAJOR_KEY_NAMES if mode == "major" else MINOR_KEY_NAMES
     return f"{key_names[idx]} {mode}", "Krumhansl-Schmuckler correlation on smooth STFT chroma"
 
@@ -736,7 +828,18 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
     )
     key_chroma_mean = np.mean(key_chroma, axis=1)
     key_chroma_mean = normalize_chroma(key_chroma_mean)
+    best_key_score, best_key_idx, best_key_mode = _best_key_profile(key_chroma_mean)
     est_key, key_method = estimate_key_from_chroma(key_chroma_mean)
+    key_reliable, key_note = key_reliability(
+        key_chroma,
+        t_frames,
+        duration_s,
+        best_key_score,
+        best_key_idx,
+        best_key_mode,
+    )
+    if not key_reliable:
+        est_key = None
     key_method = (
         f"{key_method}; lower/mid key-analysis weighting "
         f"(octave center {KEY_CHROMA_OCTAVE_CENTER:.1f}, width {KEY_CHROMA_OCTAVE_WIDTH:.1f})"
@@ -840,6 +943,8 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
                 "1Hz aggregation, events, 10s interpretive map."
             ),
             "estimated_key": est_key,
+            "key_reliable": bool(key_reliable),
+            "key_note": key_note,
             "key_method": key_method,
         },
         "time_series_1hz": {
