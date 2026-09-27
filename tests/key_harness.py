@@ -145,6 +145,12 @@ def open_fifth(root_pc=0, duration_s=20.0):
     return soft_clip(y)
 
 
+def repeated_chord(root_pc=0, quality="major", duration_s=20.0):
+    segment = chord_segment(root_pc, quality, duration_s=2.0)
+    repeats = max(1, int(math.ceil(duration_s * SR / len(segment))))
+    return soft_clip(np.tile(segment, repeats)[: int(duration_s * SR)])
+
+
 def noise_percussion(duration_s=20.0, seed=5):
     rng = np.random.default_rng(seed)
     y = np.zeros(int(duration_s * SR), dtype=float)
@@ -182,7 +188,7 @@ def profile_scores(chroma):
     return np.asarray(scores, dtype=float)
 
 
-def candidate_metrics(chroma):
+def candidate_metrics(chroma, chroma_bins=None):
     p = np.asarray(chroma, dtype=float)
     total = float(np.sum(p))
     if total > 0:
@@ -211,6 +217,17 @@ def candidate_metrics(chroma):
 
     uniform = np.full(12, 1.0 / 12.0)
     l2_uniform = float(np.linalg.norm(p - uniform))
+    effective_bins = float(np.exp(-np.sum(positive * np.log(positive)))) if positive.size else 1.0
+    top3_mass = float(np.sum(np.sort(p)[-3:])) if p.size else 0.0
+
+    bins = np.asarray(chroma_bins or [], dtype=float)
+    if bins.ndim == 2 and bins.shape[0] >= 2:
+        mean_bin = np.mean(bins, axis=0)
+        chroma_dispersion = float(np.mean(np.linalg.norm(bins - mean_bin, axis=1)))
+        chroma_step_l2 = float(np.mean(np.linalg.norm(np.diff(bins, axis=0), axis=1)))
+    else:
+        chroma_dispersion = 0.0
+        chroma_step_l2 = 0.0
 
     return {
         "max_min": float("inf") if minimum <= 1e-12 and maximum > 0 else (maximum / minimum if minimum > 0 else 1.0),
@@ -219,6 +236,10 @@ def candidate_metrics(chroma):
         "entropy_concentration": 1.0 - entropy,
         "flatness": flatness,
         "l2_uniform": l2_uniform,
+        "effective_bins": effective_bins,
+        "top3_mass": top3_mass,
+        "chroma_dispersion": chroma_dispersion,
+        "chroma_step_l2": chroma_step_l2,
         "best_profile_corr": best,
         "profile_margin": margin,
         "profile_z": profile_z,
@@ -267,12 +288,22 @@ def main():
     ap.add_argument("--json", action="store_true", help="Also print machine-readable result JSON")
     args = ap.parse_args()
 
-    fixtures = [
-        ("C-major-progression", progression(0, "major"), "tonal", "C major"),
-        ("G-major-progression", progression(7, "major"), "tonal", "G major"),
-        ("D-major-progression", progression(2, "major"), "tonal", "D major"),
-        ("A-minor-progression", progression(9, "minor"), "tonal", "A minor"),
-        ("D-minor-progression", progression(2, "minor"), "tonal", "D minor"),
+    fixtures = []
+    for root in range(12):
+        fixtures.append((
+            f"{root:02d}-major-progression",
+            progression(root, "major"),
+            "tonal",
+            f"{['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'][root]} major",
+        ))
+        fixtures.append((
+            f"{root:02d}-minor-progression",
+            progression(root, "minor"),
+            "tonal",
+            f"{['C','C#','D','Eb','E','F','F#','G','G#','A','Bb','B'][root]} minor",
+        ))
+
+    fixtures += [
         ("white-noise", white_noise(), "non-tonal", None),
         ("pinkish-noise", pinkish_noise(), "non-tonal", None),
         ("chromatic-cloud", chromatic_cloud(), "non-tonal", None),
@@ -280,6 +311,8 @@ def main():
         ("silence", silence(), "non-tonal", None),
         ("C-drone", single_note_drone(0), "ambiguous", None),
         ("C-open-fifth", open_fifth(0), "ambiguous", None),
+        ("C-major-chord-only", repeated_chord(0, "major"), "ambiguous", None),
+        ("C-minor-chord-only", repeated_chord(0, "minor"), "ambiguous", None),
         ("whole-tone-cloud", whole_tone_cloud(), "ambiguous", None),
     ]
 
@@ -287,13 +320,15 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mme-key-harness-") as td:
         for name, audio, kind, expected in fixtures:
             obj = run_mme(args.script.resolve(), audio, name, td)
-            chroma = obj.get("harmony", {}).get("chroma_mean_12_C_to_B", [])
+            harmony = obj.get("harmony", {})
+            chroma = harmony.get("chroma_mean_12_C_to_B", [])
+            bins = [item.get("chroma", []) for item in harmony.get("chroma_bins_2s_C_to_B", [])]
             row = {
                 "fixture": name,
                 "kind": kind,
                 "expected_key": expected,
                 "estimated_key": obj.get("meta", {}).get("estimated_key"),
-                **candidate_metrics(chroma),
+                **candidate_metrics(chroma, bins),
             }
             row["correct"] = expected is None or row["estimated_key"] == expected
             results.append(row)
@@ -308,6 +343,10 @@ def main():
         "entropy_concentration",
         "flatness",
         "l2_uniform",
+        "effective_bins",
+        "top3_mass",
+        "chroma_dispersion",
+        "chroma_step_l2",
         "best_profile_corr",
         "profile_margin",
         "profile_z",
@@ -329,6 +368,10 @@ def main():
         "entropy_concentration",
         "flatness",
         "l2_uniform",
+        "effective_bins",
+        "top3_mass",
+        "chroma_dispersion",
+        "chroma_step_l2",
         "best_profile_corr",
         "profile_margin",
         "profile_z",
