@@ -239,6 +239,7 @@ If one of these seems suggested by the experience, it may shape your metaphor or
 - **Energy / RMS** is a relative signal-level measure, not calibrated perceptual loudness.
 - **Brightness / spectral centroid** describes where spectral energy is centered, independent of overall amplitude. During a fade or very quiet passage, a centroid rise can happen because low-frequency energy disappears while faint high-frequency material remains. Check brightness changes against RMS before interpreting them as perceptual brightening.
 - **Chroma** gives pitch-class distribution and harmonic color. It is not a melody line and does not identify exact chords or voicings.
+- **Global key** is an estimate from a separate lower/mid-weighted chroma analysis path. Key reliability is still under development, so treat the returned key as contextual evidence rather than an infallible label.
 - **Spectral flux and onset strength** are proxies for change and transient activity. They do not identify what caused the change.
 - **Rhythm** is trustworthy only when `pulse_reliable` is true. `tempo_confidence` is a score, not a probability; `confidence_gate` reports the threshold used to accept or reject the pulse.
 - **Salient events** mark notable measured changes, not named musical events or specific sounds.
