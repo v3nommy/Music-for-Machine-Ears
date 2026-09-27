@@ -73,7 +73,7 @@ MME provides both whole-track chroma and two-second chroma bins. Chroma can conv
 
 ### Global key estimate
 
-The whole-track key estimate uses smooth STFT chroma with Krumhansl-Schmuckler profile correlation.
+The whole-track key estimate uses Krumhansl-Schmuckler profile correlation on a **separate lower/mid-weighted chroma analysis path**. The listener-facing sensory chroma keeps its existing middle/upper weighting; key estimation intentionally uses a different register emphasis so upper harmonics are less likely to overpower tonic and mode evidence.
 
 Regional key guesses were intentionally removed. Short-window relative-major/minor ambiguity made them look more authoritative than they deserved.
 
