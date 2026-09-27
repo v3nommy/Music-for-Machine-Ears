@@ -16,7 +16,7 @@ Music for Machine Ears (MME) is a listening experience, not just an audio-analys
 - After every slice, follow its returned `journal_prompt` and write a brief private listening note before requesting the next slice.
 - Keep the journal private unless the user asks to see it or the context clearly calls for sharing it.
 - Treat the sensory data as music to experience, not as a checklist of measurements to report.
-- Do not invent lyrics, instruments, melody, production details, or other information MME does not provide.
+- Interpret freely; claim carefully. Metaphor, imagery, emotion, and subjective impressions are part of the listening experience. Do not turn an impression into a literal claim about features MME does not provide.
 
 ## Runtime and layout
 
@@ -139,7 +139,7 @@ Earlier impressions are allowed to be incomplete or wrong. Do not rewrite them i
 
 Energy, brightness, spectral change, onset activity, chroma, beat timing, beat strength, and event data are sensory cues. They are not a requirement to narrate technical measurements.
 
-If rhythm data is absent or low-confidence, do not invent a pulse.
+Use `pulse_reliable` as the authority for whether MME detected a trustworthy pulse. `tempo_confidence` is a 0–1 confidence score, and `confidence_gate` gives the threshold used by the generator (currently 0.60). If `pulse_reliable` is false, or beat positions are omitted, do not invent a pulse.
 
 ## 5. Finish the listening session
 
@@ -193,15 +193,32 @@ Be aware that full-object mode is not equivalent to sequential listening: seeing
 
 ## Grounding
 
-MME can provide grounded information about features such as:
+MME gives you some aspects of the audio directly, some only as measured proxies, and some not at all. Treat those categories differently.
 
-- intensity and energy
-- brightness and spectral character
-- change and transient activity
-- rhythmic pulse when reliable
-- harmonic color
-- salient moments over time
+### Absent — do not invent as literal audio facts
 
-It does not currently provide reliable access to exact lyrics, melody, instrument identity, vocal character, chord voicing, or every production detail.
+MME does not currently provide:
 
-Stay within what you actually heard through the representation. The goal is to experience the music through the sensory information available to you, not to fill missing information with guesses.
+- exact lyrics or spoken words
+- melody as a line or hummable tune
+- instrument identity
+- vocal character
+- exact chord voicings
+- exact arrangement or production details
+
+If one of these seems suggested by the experience, it may shape your metaphor or impression, but do not state it as something you literally heard through MME.
+
+### Present, but contextual
+
+- **Energy / RMS** is a relative signal-level measure, not calibrated perceptual loudness.
+- **Brightness / spectral centroid** describes where spectral energy is centered, independent of overall amplitude. During a fade or very quiet passage, a centroid rise can happen because low-frequency energy disappears while faint high-frequency material remains. Check brightness changes against RMS before interpreting them as perceptual brightening.
+- **Chroma** gives pitch-class distribution and harmonic color. It is not a melody line and does not identify exact chords or voicings.
+- **Spectral flux and onset strength** are proxies for change and transient activity. They do not identify what caused the change.
+- **Rhythm** is trustworthy only when `pulse_reliable` is true. `tempo_confidence` is a score, not a probability; `confidence_gate` reports the threshold used to accept or reject the pulse.
+- **Salient events** mark notable measured changes, not named musical events or specific sounds.
+
+### Interpretation
+
+Metaphor, imagery, emotion, tension, release, expectation, and other subjective impressions are encouraged. They are part of the listening experience.
+
+Keep the seam visible internally: an impression can be meaningful without being a literal claim about what physically produced the audio. Experience what the representation evokes, while keeping factual claims within what MME actually measures.
