@@ -269,6 +269,10 @@ def main():
                 f.write("# MME Listening Journal\n\n")
             f.write(f"## {r['start']:.3f}–{r['end']:.3f} s\n\n{args.note.strip()}\n\n")
         state["awaiting_note"] = False
+        # Persist acceptance of the note before attempting to release the next
+        # slice. If execution stops here, a later --resume continues from the
+        # saved cursor instead of requiring the previous note again.
+        write_json(cursor_path, state)
 
     index = int(state["next_slice_index"])
     if index >= int(state["slice_count"]):
