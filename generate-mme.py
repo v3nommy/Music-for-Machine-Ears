@@ -1,10 +1,10 @@
-import os, json, math, datetime, re, subprocess, tempfile, shutil, unicodedata
+import os, json, math, datetime, re, subprocess, tempfile, shutil, unicodedata, warnings
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from scipy import signal
+from scipy import signal, ndimage
 
 # Optional (preferred) WAV reading:
 try:
@@ -23,11 +23,25 @@ N_FFT = 2048
 WINDOW_S = 10
 CHROMA_BIN_S = 2
 
+# Native rhythm tracker defaults. These are intentionally few and centralized so
+# the public skill stays lightweight; the external harness is the place to tune them.
+RHYTHM_GAMMA = 100.0
+RHYTHM_DETREND_S = 1.5
+RHYTHM_PRIOR_CENTER_BPM = 120.0
+RHYTHM_PRIOR_OCTAVES = 0.75
+RHYTHM_DP_TIGHTNESS = 100.0
+RHYTHM_PERIODICITY_REF = 0.40
+RHYTHM_CONFIDENCE_GATE = 0.60
+RHYTHM_MIN_ACTIVITY_RATIO = 5e-3
+
 # Fallback thresholds (used only if adaptive computation fails)
 ENERGY_THRESH_DEFAULT = {"low": 0.05, "high": 0.10}
 BRIGHT_THRESH_DEFAULT = {"dark": 1500.0, "bright": 2200.0}
+BRIGHTNESS_SILENCE_RATIO = 1e-3  # -60 dB relative to peak frame level
 
 NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+MAJOR_KEY_NAMES = ["C","Db","D","Eb","E","F","F#","G","Ab","A","Bb","B"]
+MINOR_KEY_NAMES = ["C","C#","D","Eb","E","F","F#","G","G#","A","Bb","B"]
 
 MAJOR_PROFILE = np.array([6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88], dtype=float)
 MINOR_PROFILE = np.array([6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17], dtype=float)
@@ -68,21 +82,33 @@ def tier_brightness(hz, thresh):
         return "moderate"
     return "bright"
 
+def _ffmpeg_to_temp_wav(path):
+    """Convert an audio file to a conventional PCM WAV via ffmpeg."""
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("ffmpeg is required to repair/convert this audio file but is not installed.")
+    fd, tmp = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", path, "-ar", "44100", "-ac", "1", "-sample_fmt", "s16", tmp],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg conversion failed: {result.stderr[:500]}")
+        return tmp, lambda: os.path.exists(tmp) and os.unlink(tmp)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
 def _ensure_wav(path):
     """If path is not a WAV file, convert to a temp WAV via ffmpeg. Returns (wav_path, cleanup_fn)."""
     ext = os.path.splitext(path)[1].lower()
     if ext in (".wav", ".wave"):
         return path, lambda: None
-    if not shutil.which("ffmpeg"):
-        raise RuntimeError(f"Input file is {ext}, but ffmpeg is not installed. Install ffmpeg or convert to WAV manually.")
-    tmp = tempfile.mktemp(suffix=".wav")
-    result = subprocess.run(
-        ["ffmpeg", "-y", "-i", path, "-ar", "44100", "-ac", "1", "-sample_fmt", "s16", tmp],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg conversion failed: {result.stderr[:500]}")
-    return tmp, lambda: os.unlink(tmp)
+    return _ffmpeg_to_temp_wav(path)
+
 
 def load_audio_mono(path):
     """Load audio (any SR), convert to mono float32 in [-1,1] if possible."""
@@ -104,6 +130,32 @@ def load_audio_mono(path):
         if max_abs > 1.5:
             y = y / max_abs
         return y.astype(np.float32), int(sr)
+
+def load_audio_with_fallback(path):
+    """Load audio robustly, repairing/converting with ffmpeg when needed."""
+    wav_path, cleanup = _ensure_wav(path)
+    repair_cleanup = lambda: None
+    try:
+        # scipy.io.wavfile can trust placeholder sizes in streamed WAV headers
+        # and attempt enormous allocations. Without soundfile, normalize WAVs
+        # through ffmpeg first whenever ffmpeg is available.
+        if not HAS_SF and os.path.splitext(wav_path)[1].lower() in (".wav", ".wave") and shutil.which("ffmpeg"):
+            repaired_path, repair_cleanup = _ffmpeg_to_temp_wav(wav_path)
+            return load_audio_mono(repaired_path)
+
+        try:
+            return load_audio_mono(wav_path)
+        except (Exception, MemoryError) as first_error:
+            try:
+                repaired_path, repair_cleanup = _ffmpeg_to_temp_wav(wav_path)
+                return load_audio_mono(repaired_path)
+            except Exception as repair_error:
+                raise RuntimeError(
+                    f"Could not load audio directly ({first_error}) or after ffmpeg repair ({repair_error})."
+                ) from repair_error
+    finally:
+        repair_cleanup()
+        cleanup()
 
 def resample_to_22050(y, sr):
     if sr == SR_TARGET:
@@ -135,10 +187,21 @@ def frame_rms_from_mag(mag):
     return np.sqrt(p + 1e-12)
 
 def spectral_centroid(f, mag):
-    # centroid per frame
+    # Centroid is unstable when virtually no signal is present. Suppress frames
+    # below -60 dB of the track's peak frame level instead of turning numerical
+    # residue into a spurious high-brightness reading.
     num = np.sum((f[:, None] * mag), axis=0)
-    den = np.sum(mag, axis=0) + 1e-12
-    return num / den
+    den = np.sum(mag, axis=0)
+    centroid = num / (den + 1e-12)
+    frame_level = np.sqrt(np.mean(mag.astype(float) ** 2, axis=0))
+    peak_level = float(np.max(frame_level)) if frame_level.size else 0.0
+    if peak_level > 0.0:
+        centroid = np.where(
+            frame_level >= peak_level * BRIGHTNESS_SILENCE_RATIO,
+            centroid,
+            0.0,
+        )
+    return centroid
 
 def spectral_flux(mag):
     # positive differences between successive frames
@@ -163,76 +226,272 @@ def onset_envelope_from_flux(flux):
     x = smooth_1d(x, win=7)
     return x
 
-def estimate_tempo_autocorr(onset_env, frame_rate, bpm_min=40, bpm_max=240):
-    # autocorrelation
-    x = onset_env - np.mean(onset_env)
-    ac = np.correlate(x, x, mode="full")
-    ac = ac[len(ac)//2:]  # non-negative lags
-    # lag range
-    lag_min = int(frame_rate * 60.0 / bpm_max)
-    lag_max = int(frame_rate * 60.0 / bpm_min)
-    lag_min = max(lag_min, 1)
-    lag_max = min(lag_max, len(ac)-1)
+def rhythm_onset_envelope(mag, frame_rate, gamma=RHYTHM_GAMMA, detrend_s=RHYTHM_DETREND_S):
+    """Build a rhythm-only onset envelope from log-compressed spectral change.
 
-    segment = ac[lag_min:lag_max]
-    if len(segment) <= 0:
-        return 120.0, [120.0, 240.0, 60.0], None
+    This is deliberately separate from onset_envelope_from_flux(), which remains
+    the source for existing non-rhythm MME outputs.
+    """
+    if mag.size == 0 or mag.shape[1] == 0:
+        return np.zeros(0, dtype=float)
 
-    best_rel = int(np.argmax(segment))
-    best_lag = lag_min + best_rel
-    tempo = 60.0 * frame_rate / best_lag
+    log_mag = np.log1p(gamma * np.maximum(mag.astype(float), 0.0))
+    diff = np.diff(log_mag, axis=1)
+    flux = np.sum(np.maximum(diff, 0.0), axis=0)
+    flux = np.concatenate([[0.0], flux])
 
-    cands = [tempo, tempo*2.0, tempo/2.0]
-    # crude confidence: peak / mean of segment
-    conf = float(segment[best_rel] / (np.mean(segment) + 1e-9))
-    return float(tempo), [float(c) for c in cands], float(conf)
+    # Avoid amplifying numerical residue from essentially stationary signals.
+    spectral_level = float(np.mean(np.sum(log_mag, axis=0)))
+    activity_ratio = float(np.std(flux) / (spectral_level + 1e-12)) if spectral_level > 0 else 0.0
+    if activity_ratio < RHYTHM_MIN_ACTIVITY_RATIO:
+        return np.zeros_like(flux, dtype=float)
 
-def first_strong_onset_time(onset_env, t_frames):
-    # pick first onset peak above mean+std
-    mu = float(np.mean(onset_env))
-    sd = float(np.std(onset_env))
-    thr = mu + sd
-    for i in range(1, len(onset_env)-1):
-        if onset_env[i] > thr and onset_env[i] > onset_env[i-1] and onset_env[i] >= onset_env[i+1]:
-            return float(t_frames[i])
-    # fallback
-    return float(t_frames[0]) if len(t_frames) else 0.0
+    detrend_win = max(1, int(round(detrend_s * frame_rate)))
+    if detrend_win > 1:
+        baseline = ndimage.uniform_filter1d(flux, size=detrend_win, mode="nearest")
+        flux = np.maximum(flux - baseline, 0.0)
 
-def build_beat_times(beat0, tempo_bpm, duration_s):
-    if tempo_bpm <= 0:
-        return []
-    period = 60.0 / tempo_bpm
-    times = []
-    k = 0
-    while True:
-        t = beat0 + k*period
-        if t > duration_s:
+    sd = float(np.std(flux))
+    if not np.isfinite(sd) or sd <= 1e-12:
+        return np.zeros_like(flux, dtype=float)
+    return flux / sd
+
+
+def estimate_rhythm_period(onset_env, frame_rate, bpm_min=40.0, bpm_max=240.0):
+    """Estimate a target beat period using FFT autocorrelation + a broad tempo prior."""
+    x = np.asarray(onset_env, dtype=float)
+    if x.size < 3 or float(np.std(x)) <= 1e-12:
+        return None, None, 0.0
+
+    x = x - np.mean(x)
+    ac = signal.correlate(x, x, mode="full", method="fft")[x.size - 1:]
+    if ac.size < 3 or float(ac[0]) <= 1e-12:
+        return None, None, 0.0
+    ac = ac / float(ac[0])
+
+    lag_min = max(1, int(math.ceil(frame_rate * 60.0 / bpm_max)))
+    lag_max = min(ac.size - 2, int(math.floor(frame_rate * 60.0 / bpm_min)))
+    if lag_max < lag_min:
+        return None, None, 0.0
+
+    lags = np.arange(lag_min, lag_max + 1, dtype=float)
+    center_period = frame_rate * 60.0 / RHYTHM_PRIOR_CENTER_BPM
+    prior = np.exp(-0.5 * (np.log2(lags / center_period) / RHYTHM_PRIOR_OCTAVES) ** 2)
+    weighted = ac[lag_min:lag_max + 1] * prior
+    best_lag = lag_min + int(np.argmax(weighted))
+
+    # Sub-frame parabolic refinement reduces integer-lag tempo quantization.
+    delta = 0.0
+    denom = float(ac[best_lag - 1] - 2.0 * ac[best_lag] + ac[best_lag + 1])
+    if abs(denom) > 1e-12:
+        delta = 0.5 * float(ac[best_lag - 1] - ac[best_lag + 1]) / denom
+        delta = float(np.clip(delta, -0.5, 0.5))
+
+    period_frames = float(best_lag + delta)
+    tempo_bpm = float(60.0 * frame_rate / period_frames)
+
+    # Periodicity measures how distinct the selected autocorrelation peak is,
+    # rather than its raw height. Aperiodic/noisy signals can retain a broad
+    # positive autocorrelation floor without a true rhythmic peak.
+    prominence_wlen = max(3, int(round(2.0 * best_lag)))
+    if prominence_wlen % 2 == 0:
+        prominence_wlen += 1
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prominence = signal.peak_prominences(ac, [best_lag], wlen=prominence_wlen)[0]
+    periodicity = float(np.clip(prominence[0] if prominence.size else 0.0, 0.0, 1.0))
+    return period_frames, tempo_bpm, periodicity
+
+
+def _gaussian_smooth(x, sigma):
+    """Small NumPy Gaussian smoother used only by the beat tracker's local score."""
+    x = np.asarray(x, dtype=float)
+    if x.size == 0 or sigma <= 0.25:
+        return x.copy()
+    radius = max(1, int(math.ceil(3.0 * sigma)))
+    grid = np.arange(-radius, radius + 1, dtype=float)
+    kernel = np.exp(-0.5 * (grid / sigma) ** 2)
+    kernel /= np.sum(kernel)
+    return np.convolve(x, kernel, mode="same")
+
+
+def track_beats_dp(onset_env, target_period, tightness=RHYTHM_DP_TIGHTNESS):
+    """Ellis-style dynamic-programming beat tracker (Ellis, 2007)."""
+    onset_env = np.asarray(onset_env, dtype=float)
+    if onset_env.size < 2 or target_period is None or target_period <= 1.0:
+        return [], onset_env.copy()
+
+    local = _gaussian_smooth(onset_env, max(target_period / 32.0, 0.25))
+    if local.size == 0 or float(np.max(local)) <= 1e-12:
+        return [], local
+
+    interval_min = max(1, int(math.floor(target_period / 2.0)))
+    interval_max = max(interval_min, int(math.ceil(target_period * 2.0)))
+    intervals = np.arange(interval_min, interval_max + 1, dtype=int)
+    penalties = tightness * (np.log(intervals.astype(float) / target_period) ** 2)
+
+    score = np.zeros(local.size, dtype=float)
+    backlink = np.full(local.size, -1, dtype=int)
+
+    for t in range(local.size):
+        mask = intervals <= t
+        if np.any(mask):
+            valid_intervals = intervals[mask]
+            candidates = score[t - valid_intervals] - penalties[mask]
+            best = int(np.argmax(candidates))
+            if float(candidates[best]) > 0.0:
+                score[t] = local[t] + float(candidates[best])
+                backlink[t] = t - int(valid_intervals[best])
+            else:
+                score[t] = local[t]
+        else:
+            score[t] = local[t]
+
+    peaks, _ = signal.find_peaks(score)
+    if peaks.size:
+        median_peak = float(np.median(score[peaks]))
+        eligible = peaks[score[peaks] >= 0.5 * median_peak]
+        end = int(eligible[-1] if eligible.size else peaks[-1])
+    else:
+        end = int(np.argmax(score))
+
+    beat_frames = []
+    current = end
+    while current >= 0:
+        beat_frames.append(int(current))
+        previous = int(backlink[current])
+        if previous < 0 or previous >= current:
             break
-        times.append(float(t))
-        k += 1
-    return times
+        current = previous
+    beat_frames.reverse()
 
-def bar_times_every_4_beats(beat_times):
-    return beat_times[::4] if len(beat_times) >= 4 else []
+    # Trim only weak edges; weak interior beats remain useful sensory data.
+    edge_threshold = 0.5 * float(np.sqrt(np.mean(local ** 2)))
+    while beat_frames and local[beat_frames[0]] < edge_threshold:
+        beat_frames.pop(0)
+    while beat_frames and local[beat_frames[-1]] < edge_threshold:
+        beat_frames.pop()
 
-def pitch_class_from_freq(freq):
-    if freq <= 0:
+    return beat_frames, local
+
+
+def _beat_onset_maxima(onset_env, beat_frames, radius=2):
+    onset_env = np.asarray(onset_env, dtype=float)
+    values = []
+    for frame in beat_frames:
+        start = max(0, int(frame) - radius)
+        end = min(onset_env.size, int(frame) + radius + 1)
+        values.append(float(np.max(onset_env[start:end])) if end > start else 0.0)
+    return values
+
+
+def rhythm_confidence(onset_env, beat_frames, periodicity):
+    """Return a bounded confidence score; it is a score, not a probability."""
+    if len(beat_frames) < 2:
+        return 0.0, []
+
+    beat_maxima = _beat_onset_maxima(onset_env, beat_frames, radius=2)
+    m_on = float(np.mean(beat_maxima)) if beat_maxima else 0.0
+    first, last = int(beat_frames[0]), int(beat_frames[-1])
+    m_all = float(np.mean(onset_env[first:last + 1])) if last >= first else 0.0
+
+    salience = float(np.clip((m_on - m_all) / (m_on + m_all + 1e-12), 0.0, 1.0))
+    periodicity_score = float(np.clip(periodicity / RHYTHM_PERIODICITY_REF, 0.0, 1.0))
+    confidence = float(math.sqrt(periodicity_score * salience))
+
+    scale = float(np.percentile(beat_maxima, 95)) if beat_maxima else 0.0
+    if scale <= 1e-12:
+        strengths = [0.0 for _ in beat_maxima]
+    else:
+        strengths = [float(round(np.clip(v / scale, 0.0, 1.0), 2)) for v in beat_maxima]
+    return confidence, strengths
+
+
+def tempo_from_tracked_beats(beat_times_s):
+    """Estimate global BPM from the tracked sequence while averaging frame quantization."""
+    if beat_times_s is None or len(beat_times_s) < 2:
         return None
-    midi = 69.0 + 12.0 * math.log2(freq / 440.0)
-    pc = int(round(midi)) % 12
-    return pc
+    span = float(beat_times_s[-1] - beat_times_s[0])
+    if span <= 0.0:
+        return None
+    return float(60.0 * (len(beat_times_s) - 1) / span)
+
+
+def analyze_rhythm(mag, t_frames, frame_rate):
+    """Run MME's self-contained rhythm path without changing other sensory channels."""
+    rhythm_env = rhythm_onset_envelope(mag, frame_rate)
+    period, estimated_bpm, periodicity = estimate_rhythm_period(rhythm_env, frame_rate)
+    beat_frames, _ = track_beats_dp(rhythm_env, period)
+    confidence, strengths = rhythm_confidence(rhythm_env, beat_frames, periodicity)
+
+    candidate_times = [float(t_frames[i]) for i in beat_frames if 0 <= i < len(t_frames)]
+    reliable = confidence >= RHYTHM_CONFIDENCE_GATE and len(candidate_times) >= 2
+
+    if reliable:
+        beat_times = candidate_times
+        beat_strength = strengths[:len(beat_times)]
+        tracked_bpm = tempo_from_tracked_beats(beat_times)
+        tempo_bpm = tracked_bpm if tracked_bpm is not None else estimated_bpm
+        note = None
+    else:
+        beat_times = None
+        beat_strength = None
+        tempo_bpm = None
+        note = "No reliable pulse detected; tempo and beat positions omitted."
+
+    return {
+        "rhythm_method": "native_dp_v1",
+        "tempo_bpm": None if tempo_bpm is None else float(round(tempo_bpm, 3)),
+        "tempo_confidence": float(round(confidence, 3)),
+        "beats_count": 0 if beat_times is None else int(len(beat_times)),
+        "beat_times_s": None if beat_times is None else [float(round(x, 3)) for x in beat_times],
+        "beat_strength": beat_strength,
+        "note": note,
+    }
 
 def chroma_from_mag(f, mag):
-    # mag: (freq_bins, frames)
-    pcs = np.zeros((12, mag.shape[1]), dtype=np.float32)
-    for bi, freq in enumerate(f):
-        if freq < 50:  # ignore very low bins (rumble/DC)
-            continue
-        pc = pitch_class_from_freq(float(freq))
-        if pc is None:
-            continue
-        pcs[pc, :] += mag[bi, :]
-    return pcs
+    # Smooth STFT-to-chroma projection. Hard-assigning each FFT bin to one pitch
+    # class lets harmonics dominate the key estimate; a smooth filterbank is
+    # substantially more stable while keeping the implementation dependency-free.
+    if mag.size == 0 or mag.shape[1] == 0:
+        return np.zeros((12, mag.shape[1] if mag.ndim == 2 else 0), dtype=np.float32)
+
+    freqs = np.asarray(f, dtype=float)
+    if freqs.size < 2:
+        return np.zeros((12, mag.shape[1]), dtype=np.float32)
+
+    positive = np.maximum(freqs[1:], 1e-9)
+    semitone_bins = 12.0 * np.log2(positive / (440.0 / 16.0))
+    semitone_bins = np.concatenate([[semitone_bins[0] - 18.0], semitone_bins])
+    bin_width = np.concatenate([np.maximum(np.diff(semitone_bins), 1.0), [1.0]])
+
+    distance = semitone_bins[None, :] - np.arange(12, dtype=float)[:, None]
+    distance = np.remainder(distance + 6.0 + 120.0, 12.0) - 6.0
+    weights = np.exp(-0.5 * (2.0 * distance / bin_width[None, :]) ** 2)
+
+    col_norm = np.sqrt(np.sum(weights ** 2, axis=0, keepdims=True)) + 1e-12
+    weights /= col_norm
+
+    # Favor the musically useful middle octaves while retaining bass and upper
+    # harmonics. Octave numbers are referenced so A440 is octave 4.
+    octave_position = semitone_bins / 12.0
+    weights *= np.exp(-0.5 * ((octave_position - 5.0) / 2.0) ** 2)[None, :]
+    weights = np.roll(weights, -3, axis=0)  # C..B ordering
+
+    raw = weights @ (mag.astype(float) ** 2)
+    frame_level = np.sqrt(np.mean(mag.astype(float) ** 2, axis=0))
+    peak_level = float(np.max(frame_level)) if frame_level.size else 0.0
+    active = (
+        frame_level >= peak_level * BRIGHTNESS_SILENCE_RATIO
+        if peak_level > 0.0
+        else np.zeros_like(frame_level, dtype=bool)
+    )
+
+    chroma = np.zeros_like(raw, dtype=float)
+    frame_max = np.max(raw, axis=0)
+    valid = active & (frame_max > 1e-12)
+    chroma[:, valid] = raw[:, valid] / frame_max[valid]
+    return chroma.astype(np.float32)
 
 def normalize_chroma(v):
     s = float(np.sum(v))
@@ -255,19 +514,31 @@ def chroma_bins(chroma, t_frames, duration_s, bin_s=2):
         out.append({"start": float(round(start, 3)), "end": float(round(end, 3)), "chroma": [float(x) for x in v]})
     return out
 
+def _profile_correlation(chroma_vec, profile):
+    a = np.asarray(chroma_vec, dtype=float)
+    b = np.asarray(profile, dtype=float)
+    a = a - np.mean(a)
+    b = b - np.mean(b)
+    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
+    if denom <= 1e-12:
+        return -1.0
+    return float(np.dot(a, b) / denom)
+
+
 def estimate_key_from_chroma(chroma_mean):
     cm = normalize_chroma(np.array(chroma_mean, dtype=float))
-    best = (-1.0, None, None)
+    best = (-2.0, None, None)
     for i in range(12):
-        score = float(np.dot(cm, np.roll(MAJOR_PROFILE, i)))
+        score = _profile_correlation(cm, np.roll(MAJOR_PROFILE, i))
         if score > best[0]:
             best = (score, i, "major")
     for i in range(12):
-        score = float(np.dot(cm, np.roll(MINOR_PROFILE, i)))
+        score = _profile_correlation(cm, np.roll(MINOR_PROFILE, i))
         if score > best[0]:
             best = (score, i, "minor")
     idx, mode = best[1], best[2]
-    return f"{NOTE_NAMES[idx]} {mode}", "Krumhansl-Schmuckler on mean chroma (STFT pitch-class mapping)"
+    key_names = MAJOR_KEY_NAMES if mode == "major" else MINOR_KEY_NAMES
+    return f"{key_names[idx]} {mode}", "Krumhansl-Schmuckler correlation on smooth STFT chroma"
 
 def key_regions(chroma, t_frames, duration_s, region_s=30):
     """Estimate key per region_s-second window. Returns a list of {start, end, key} dicts."""
@@ -534,12 +805,8 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
     os.makedirs(out_dir, exist_ok=True)
     output_base = output_base_name(audio_path, slug)
 
-    # Convert to WAV if needed, then load + resample
-    wav_path, cleanup = _ensure_wav(audio_path)
-    try:
-        y, sr = load_audio_mono(wav_path)
-    finally:
-        cleanup()
+    # Convert/repair as needed, then load + resample.
+    y, sr = load_audio_with_fallback(audio_path)
     y, sr = resample_to_22050(y, sr)
     duration_s = float(len(y) / sr)
     frame_dt_s = float(HOP / sr)
@@ -553,15 +820,12 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
     flux_f = spectral_flux(mag)
     onset_env = onset_envelope_from_flux(flux_f)
 
-    # Tempo via autocorr
+    # Rhythm analysis uses its own improved onset envelope. The existing onset_env
+    # above remains unchanged for events, 1Hz onset strength, and interpretation.
     frame_rate = sr / HOP
-    tempo_bpm, tempo_cands, tempo_conf = estimate_tempo_autocorr(onset_env, frame_rate)
-    beat0 = first_strong_onset_time(onset_env, t_frames)
+    rhythm = analyze_rhythm(mag, t_frames, frame_rate)
 
-    beat_times = build_beat_times(beat0, tempo_bpm, duration_s)
-    bar_times = bar_times_every_4_beats(beat_times)
-
-    # Harmony: pitch-class mapping chroma
+    # Harmony: smooth STFT chroma
     chroma = chroma_from_mag(f, mag)
     chroma_mean = np.mean(chroma, axis=1)
     chroma_mean = normalize_chroma(chroma_mean)
@@ -675,17 +939,12 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
             "hop": int(HOP),
             "n_fft": int(N_FFT),
             "frame_dt_s": float(frame_dt_s),
-            "created_utc": datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat() + "Z",
+            "created_utc": datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             "analysis_notes": (
                 "MME fallback pipeline: soundfile/scipy load+resample, scipy.signal.stft, "
-                "RMS/centroid/flux/onset proxy, tempo via autocorr, chroma via pitch-class mapping, "
-                "1Hz aggregation, phases+stats, 10s interpretive map."
+                "RMS/centroid/flux/onset proxy, native rhythm onset + FFT autocorr + DP beat tracking, "
+                "smooth STFT chroma + key-profile correlation, 1Hz aggregation, phases+stats, 10s interpretive map."
             ),
-            "tempo_bpm": float(round(tempo_bpm, 3)),
-            "tempo_confidence": None if tempo_conf is None else float(round(tempo_conf, 6)),
-            "tempo_reliable": tempo_conf is not None and tempo_conf >= 2.0,
-            "tempo_candidates_bpm": [float(round(x, 3)) for x in tempo_cands],
-            "beat0_s_est": float(round(beat0, 3)),
             "estimated_key": est_key,
             "key_method": key_method,
         },
@@ -696,21 +955,12 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
             "spectral_flux": [float(x) for x in flux_1hz],
             "onset_strength": [float(x) for x in onset_1hz],
         },
-        "rhythm": {
-            "tempo_bpm": float(round(tempo_bpm, 3)),
-            "tempo_reliable": tempo_conf is not None and tempo_conf >= 2.0,
-            "beat_times_s": [float(round(x, 3)) for x in beat_times],
-            "beats_count": int(len(beat_times)),
-            "bar_times_s_every_4_beats": [float(round(x, 3)) for x in bar_times],
-            "bars_count": int(len(bar_times)),
-            "double_time_bpm": float(round(tempo_bpm*2, 3)),
-            "half_time_bpm": float(round(tempo_bpm/2, 3)),
-        },
+        "rhythm": rhythm,
         "harmony": {
             "chroma_mean_12_C_to_B": [float(x) for x in chroma_mean],
             "chroma_bins_2s_C_to_B": chroma_bins_2s,
             "key_regions": key_reg,
-            "chroma_method": "STFT pitch-class mapping",
+            "chroma_method": "smooth STFT chroma filterbank",
         },
         "structure": {
             "phases": [{"label":p["label"], "start": float(round(p["start"],3)), "end": float(round(p["end"],3))} for p in phases],
