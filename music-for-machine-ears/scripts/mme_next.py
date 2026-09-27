@@ -5,7 +5,6 @@ import argparse
 import json
 import math
 import os
-import re
 from pathlib import Path
 
 DEFAULT_SLICE_SECONDS = 20.0
@@ -138,18 +137,6 @@ def graph_refs(input_path):
     return [str((input_path.parent / name).resolve()) for name in names if (input_path.parent / name).exists()]
 
 
-def listening_interpretive_map(obj):
-    """Return hindsight context without heuristic phase labels leaking back in."""
-    value = obj.get("interpretive_map")
-    if not isinstance(value, dict):
-        return value
-    cleaned = dict(value)
-    summary = cleaned.get("summary_text")
-    if isinstance(summary, str):
-        summary = re.sub(r"(?:^|\s)Loudest phase: [^.]*\. Quietest: [^.]*\.", " ", summary)
-        cleaned["summary_text"] = re.sub(r"\s+", " ", summary).strip()
-    return cleaned
-
 
 def make_summary(obj, input_path, journal_path):
     meta = obj.get("meta", {})
@@ -174,7 +161,7 @@ def make_summary(obj, input_path, journal_path):
                 "beats_count": rhythm.get("beats_count"),
                 "note": rhythm.get("note"),
             },
-            "interpretive_map": listening_interpretive_map(obj),
+            "interpretive_map": obj.get("interpretive_map"),
             "graphs": graph_refs(input_path),
         },
         "journal_path": str(journal_path),
