@@ -77,6 +77,8 @@ The whole-track key estimate uses smooth STFT chroma with Krumhansl-Schmuckler p
 
 Regional key guesses were intentionally removed. Short-window relative-major/minor ambiguity made them look more authoritative than they deserved.
 
+MME's reliability convention for inferred global estimates is: expose whether the inference is trusted, and when it fails its reliability test, return the inferred value as `null` rather than leaving a plausible-looking guess beside a warning flag. Rhythm already follows this rule; key reliability is being evaluated against the same standard before a gate is added.
+
 ### Rhythm
 
 Rhythm uses a separate onset path, FFT autocorrelation for a target period, and dynamic-programming beat tracking.
@@ -101,7 +103,9 @@ These are measured change points, not named musical events. An event does not me
 
 ### Ten-second interpretive windows
 
-The canonical sensory object also contains coarse ten-second windows that summarize average energy, brightness, flux, and onset activity using track-relative thresholds.
+The canonical sensory object also contains coarse ten-second windows that summarize average energy, brightness, flux, and onset activity using track-relative 25th/75th-percentile thresholds.
+
+These tiers describe variation within the current track, not absolute loudness or brightness relative to other music. A uniformly quiet or dark piece can therefore still read as mostly `medium` / `moderate`.
 
 These are descriptive summaries of measured features, not musical-section labels.
 
