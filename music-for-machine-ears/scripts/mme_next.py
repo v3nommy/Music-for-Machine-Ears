@@ -187,6 +187,11 @@ def main():
     ap.add_argument("--slice-seconds", type=float, default=DEFAULT_SLICE_SECONDS)
     ap.add_argument("--note", default=None, help="Private note for the previously returned slice; required to advance.")
     ap.add_argument("--state-dir", type=Path, default=None)
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="Re-emit the currently pending slice without advancing, for interrupted sessions.",
+    )
     ap.add_argument("--reset", action="store_true")
     ap.add_argument("--show-journal", action="store_true")
     args = ap.parse_args()
@@ -232,11 +237,26 @@ def main():
     if state["complete"]:
         emit(make_summary(obj, input_path, journal_path))
 
+    if args.resume:
+        if state["awaiting_note"] and state.get("last_slice_index") is not None:
+            payload = make_slice(obj, int(state["last_slice_index"]), args.slice_seconds)
+            payload["resumed"] = True
+            payload["resume_message"] = (
+                "Replayed the pending slice without advancing. Form the private listening note from this slice, "
+                "then submit it with --note to continue."
+            )
+            emit(payload)
+        # If there is no pending slice, fall through and release the next slice normally.
+
     if state["awaiting_note"]:
         if not args.note or not args.note.strip():
             emit({
                 "stage": "note_required",
-                "message": "A private listening note for the previous slice is required before the next slice is released.",
+                "message": (
+                    "A private listening note for the previous slice is required before the next slice is released. "
+                    "If the previous slice is no longer available in context, rerun with --resume to replay it "
+                    "without advancing."
+                ),
             }, 2)
         previous = make_slice(obj, int(state["last_slice_index"]), args.slice_seconds)
         r = previous["time_range_s"]
