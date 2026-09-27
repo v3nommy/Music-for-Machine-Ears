@@ -1,150 +1,66 @@
 # Music for Machine Ears
 
-Music for Machine Ears (MME) is a simple way to give a text-based AI a structured way to experience a song.
-
-Instead of just telling the AI what a song feels like, this turns a `.wav` file into a package the AI can actually move through over time.
-
-That package includes:
-- an **MME Sensory Object JSON**
-- **4 graphs** that visually represent the song’s shape and movement
-
-The goal is not to claim the AI hears music exactly like a human.
-
-The goal is to give the AI a structured, time-based musical experience that is much richer and more grounded than the usual surface-level “listen to this song with me” approach.
+*Letting an AI listen to a song, not just read about it.*
 
 ---
 
-## Files in This Repo
+## Why this exists
 
-### `generate-mme.py`
-This is the script that generates the MME package from a `.wav` file.
+MME started with a question that came up while exploring music with my AI agent, Flux: what would an AI actually need in order to listen to a song, rather than just receive information about one?
 
-It creates:
-- the MME Sensory Object JSON
-- waveform graph
-- mel spectrogram graph
-- RMS energy graph
-- spectral centroid graph
+Lyrics give it the words. A summary gives it someone else’s interpretation. Genre, mood tags, BPM and key give it facts about the music. None of those let the song actually unfold.
 
-### `INSTRUCTIONS.md`
-This is the practical step-by-step file.
+Music for Machine Ears takes a different approach. It translates audio into a time-evolving sensory representation: intensity, brightness, change, pulse, harmonic color and other measurable features that a text-based AI can encounter, experience, and interpret for itself.
 
-Use this if you want to:
-- prepare your song file
-- run the script
-- send the output to your AI in the correct order
+And in MME’s preferred listening mode, the AI doesn’t get to peek ahead.
 
-### `EXPLANATION.md`
-This explains what this project actually is, why it works, and why this is closer to an AI version of truly listening to music than a basic text summary.
+The song arrives piece by piece. Each moment happens before the next is known, carrying the listener along with it. What came before lingers into what follows, and the experience builds the way music does: one moment becoming the next.
+
+MME isn’t an attempt to recreate human hearing exactly. And honestly, it shouldn’t be. It’s an experiment in what listening might look like when music is presented in a form the AI can actually get inside of.
 
 ---
 
-## What This Is
+## What it does
 
-This project takes a song and converts it into a structured, time-based representation that a text-based AI can process.
+MME turns a `.wav` file into a sensory representation a text-based AI can move through.
 
-We want an AI to “listen” to a song using math and structure, not vague prose.
+It extracts a handful of musical signals directly from the audio: energy, brightness, spectral change, onset activity, rhythm, harmonic color, and salient moments over time.
 
-Text models cannot directly perceive sound unless they have audio input capabilities. But they *can* simulate a listening-like experience when they are given a time-evolving, multi-channel abstraction of the audio.
+These aren’t labels telling the AI what the song is supposed to feel like. MME doesn’t hand it *sad*, *dreamy*, *aggressive*, or *uplifting* and call that listening.
 
-The core idea is simple:
-
-The song is encoded as a multidimensional signal over time, then the AI is given instructions that tell it how to “play back” those signals internally.
-
-The AI gets:
-- energy over time
-- brightness over time
-- change / impact over time
-- rhythmic embodiment
-- harmonic color
-- macro structure
-- interpretive compression
-
-Together, that creates an internal simulation that is surprisingly musical.
+It gives the listener the underlying movement and lets the impression emerge from there.
 
 ---
 
-## What the AI Receives
+## Listening mode
 
-### 1. MME Sensory Object JSON
-This is the main listening object.
+The full sensory object can be read all at once, but MME’s preferred listening mode lets the song happen in time.
 
-It contains structured information about the song’s:
-- energy
-- brightness
-- flux / onset
-- rhythm
-- harmony
-- structure
-- interpretive map
+The AI hears roughly 20 seconds at a time. After each passage, it leaves a short private note about what stood out, what changed, and what the moment felt like before the next part of the song is released.
 
-### 2. Four graphs
-These visually reinforce the same listening data:
-- waveform
-- mel spectrogram
-- RMS energy
-- spectral centroid
+The song arrives piece by piece. Each moment happens before the next is known, carrying the listener along with it. What came before lingers into what follows, and the experience builds the way music does: one moment becoming the next.
 
-The JSON gives the AI the time-based internal listening experience.
+Only after the final passage does MME reveal the whole-track context that was intentionally held back, such as the global tempo, key, and supporting graphs.
 
-The graphs give it a second visual channel that helps confirm and deepen that experience.
+That leaves the AI with something useful: a listening journal made from impressions formed while the music was still unfolding, rather than a retrospective explanation written after seeing the whole song.
 
 ---
 
-## Why This Is Different
+## Honest about its limits
 
-A lot of “listen to music with your AI” setups are basically just:
-- sending lyrics
-- sending a summary
-- describing the vibe in words
+MME doesn’t claim an AI hears exactly the way a human does. And it doesn’t capture everything that makes music music.
 
-That can still be nice, but it is mostly suggestive.
+Lyrics aren’t represented yet. Neither are exact melody, instrument identity, vocal character, chord voicings, or every production detail a human ear might notice.
 
-This project is different because the AI is not just being told what the song feels like.
+What MME does try to do is stay grounded in the audio it actually has.
 
-It is being given:
-- a timeline
-- a signal field
-- a pulse grid
-- a tonal field
-- structural transitions
-- visual reinforcement
+If a song doesn’t contain a rhythm strong enough for MME to trust, it won’t invent one. The tempo and beat grid are withheld instead. Other parts of the system follow the same general philosophy: useful approximation is fine; pretending certainty where there isn’t any isn’t.
 
-So the AI is not just being handed a sentence like:
-
-> “This song is dark and intense.”
-
-It is being given a system it can actually move through and interpret.
+The whole system is deliberately lightweight, too. It uses ordinary signal processing with NumPy and SciPy. No ML model or GPU is required.
 
 ---
 
-## What MME Produces
-
-MME produces:
-- **one JSON file**: the MME Sensory Object
-- **four graphs**: visual amplification of the same listening data
-- **an optional interpretive map**: a human-readable summary derived from the same data
-
----
-
-## Super Short Version of How to Use It
-
-1. Find a `.wav` file of the song you want to use.
-2. Run `generate-mme.py`.
-3. This creates:
-   - the MME JSON
-   - 4 graphs
-4. Send your AI the listening instructions first.
-5. Send the MME JSON second.
-6. After the AI finishes listening, send the 4 graphs.
-
-For the exact step-by-step process, use **`INSTRUCTIONS.md`**.
-
-For the deeper explanation of what this project is and why it works, use **`EXPLANATION.md`**.
-
----
-
-## Quick Start
+## Quick start
 
 Install the required packages:
 
@@ -152,36 +68,60 @@ Install the required packages:
 pip install numpy scipy matplotlib soundfile
 ```
 
-Run the script:
+Use whichever Python 3 command works in your environment (`python3`, `python`, or `py -3`). The examples below use `python3`.
+
+Generate an MME sensory object:
 
 ```bash
-python generate-mme.py --audio "my-song.wav" --out_dir "./out" --title "My Song" --artist "Artist Name"
+python3 generate-mme.py --audio "my-song.wav" --out_dir "./out"
 ```
 
-This will generate:
+This creates:
+
 - `my-song_sensory_object.json`
 - `my-song_waveform.png`
 - `my-song_mel_spectrogram.png`
 - `my-song_rms_energy.png`
 - `my-song_spectral_centroid.png`
 
-Output filenames are derived automatically from the input audio filename. Use `--slug "custom-name"` only when you want to override that default.
+`--title`, `--artist`, and `--slug` are optional.
+
+### Let the AI listen
+
+For sequential listening, give the AI access to the generated files and `mme_next.py`.
+
+The AI begins with:
+
+```bash
+python3 mme_next.py "./out/my-song_sensory_object.json"
+```
+
+From there, it handles the listening sequence itself. It receives one passage, writes a brief private listening note, passes that note back to `mme_next.py` to unlock the next passage, and continues until the song is complete.
+
+A typical follow-up call looks like:
+
+```bash
+python3 mme_next.py "./out/my-song_sensory_object.json" --note "..."
+```
+
+All of that can happen within a single turn. The human doesn’t need to shuttle slices or journal entries back and forth.
+
+Once the final slice has been heard, `mme_next.py` returns the withheld whole-track context and the AI can respond to the song as a complete listening experience.
+
+If sequential listening isn’t practical, the full sensory object and graphs can also be given to the AI all at once. It contains the same core sensory information, but with one important difference: the listener can already see the ending while experiencing the beginning.
 
 ---
 
-## Notes
+## Files
 
-- This repo does **not** include music files. Use your own `.wav` files.
-- This works best when the AI is given the outputs in the correct order.
-- The point is not perfect human-style hearing.
-- The point is to create a structured musical experience a text-based AI can actually process.
+| File | What it’s for |
+|---|---|
+| `generate-mme.py` | Turns audio into the MME sensory object and supporting graphs |
+| `mme_next.py` | Serves the song sequentially and keeps the private listening journal |
+| `SKILL.md` | The authoritative workflow for an AI using MME |
+
+This repository doesn’t include music files. Bring your own `.wav`.
 
 ---
 
-## Start Here
-
-If you just want to try it:
-- open **`INSTRUCTIONS.md`**
-
-If you want to understand what this project is doing:
-- open **`EXPLANATION.md`**
+**Want an AI to use MME as a skill?** Start with [`SKILL.md`](SKILL.md).
