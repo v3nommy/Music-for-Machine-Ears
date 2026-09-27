@@ -151,6 +151,8 @@ def make_summary(obj, input_path, journal_path):
             "artist": meta.get("artist"),
             "source_file": meta.get("source_file"),
             "estimated_key": meta.get("estimated_key"),
+            "key_reliable": meta.get("key_reliable"),
+            "key_note": meta.get("key_note"),
             "key_method": meta.get("key_method"),
             "rhythm": {
                 "rhythm_method": rhythm.get("rhythm_method"),
