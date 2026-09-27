@@ -77,7 +77,9 @@ The whole-track key estimate uses Krumhansl-Schmuckler profile correlation on a 
 
 Regional key guesses were intentionally removed. Short-window relative-major/minor ambiguity made them look more authoritative than they deserved.
 
-MME's reliability convention for inferred global estimates is: expose whether the inference is trusted, and when it fails its reliability test, return the inferred value as `null` rather than leaving a plausible-looking guess beside a warning flag. Rhythm already follows this rule; key reliability is being evaluated against the same standard before a gate is added.
+MME's reliability convention for inferred global estimates is: expose whether the inference is trusted, and when it fails its reliability test, return the inferred value as `null` rather than leaving a plausible-looking guess beside a warning flag.
+
+The experimental key gate applies that convention using the dedicated key-analysis chroma. It requires enough tonal evidence, enough harmonic movement across time, a global key profile that remains competitive across large track segments, and separation from the relative major/minor alternative. `key_reliable` means MME has enough evidence for one useful global key scalar; it does not claim the piece never tonicizes, modulates, or admits another music-theoretical interpretation.
 
 ### Rhythm
 
