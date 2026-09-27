@@ -153,6 +153,77 @@ def repeated_chord(root_pc=0, quality="major", duration_s=20.0):
     return soft_clip(np.tile(segment, repeats)[: int(duration_s * SR)])
 
 
+def note_segment(pc, duration_s=0.5):
+    n = int(round(duration_s * SR))
+    t = np.arange(n, dtype=float) / SR
+    f = midi_hz(60 + pc)
+    y = 0.20 * np.sin(2 * np.pi * f * t) + 0.04 * np.sin(2 * np.pi * 2 * f * t)
+    fade = max(1, int(0.01 * SR))
+    ramp = np.linspace(0.0, 1.0, fade)
+    y[:fade] *= ramp
+    y[-fade:] *= ramp[::-1]
+    return y
+
+
+def chromatic_motion(duration_s=24.0):
+    segments = []
+    while sum(len(x) for x in segments) < int(duration_s * SR):
+        for pc in range(12):
+            segments.append(note_segment(pc, duration_s=0.25))
+    return soft_clip(np.concatenate(segments)[: int(duration_s * SR)])
+
+
+def random_note_motion(duration_s=24.0, seed=1):
+    rng = np.random.default_rng(seed)
+    count = int(math.ceil(duration_s / 0.5))
+    segments = [note_segment(int(pc), duration_s=0.5) for pc in rng.integers(0, 12, count)]
+    return soft_clip(np.concatenate(segments)[: int(duration_s * SR)])
+
+
+def random_trichords(duration_s=24.0, seed=2):
+    rng = np.random.default_rng(seed)
+    segments = []
+    for _ in range(int(math.ceil(duration_s / 1.5))):
+        pcs = rng.choice(12, 3, replace=False)
+        n = int(1.5 * SR)
+        t = np.arange(n, dtype=float) / SR
+        y = np.zeros(n, dtype=float)
+        for pc in pcs:
+            y += 0.10 * np.sin(2 * np.pi * midi_hz(60 + int(pc)) * t)
+        segments.append(y)
+    return soft_clip(np.concatenate(segments)[: int(duration_s * SR)])
+
+
+def whole_tone_motion(duration_s=24.0):
+    segments = []
+    roots = [0, 2, 4, 6, 8, 10, 1, 3, 5, 7, 9, 11] * 2
+    for root in roots:
+        pcs = [root % 12, (root + 4) % 12, (root + 8) % 12]
+        n = int(1.0 * SR)
+        t = np.arange(n, dtype=float) / SR
+        y = np.zeros(n, dtype=float)
+        for pc in pcs:
+            y += 0.10 * np.sin(2 * np.pi * midi_hz(60 + pc) * t)
+        segments.append(y)
+    return soft_clip(np.concatenate(segments)[: int(duration_s * SR)])
+
+
+def two_distant_keys(duration_s=24.0):
+    half = duration_s / 2.0
+    return np.concatenate([
+        progression(0, "major", half),
+        progression(6, "major", half),
+    ]).astype(np.float32)
+
+
+def relative_key_toggle(duration_s=24.0):
+    half = duration_s / 2.0
+    return np.concatenate([
+        progression(0, "major", half),
+        progression(9, "minor", half),
+    ]).astype(np.float32)
+
+
 def noise_percussion(duration_s=20.0, seed=5):
     rng = np.random.default_rng(seed)
     y = np.zeros(int(duration_s * SR), dtype=float)
@@ -288,6 +359,7 @@ def main():
         help="MME generate-mme.py to evaluate",
     )
     ap.add_argument("--json", action="store_true", help="Also print machine-readable result JSON")
+    ap.add_argument("--strict", action="store_true", help="Exit non-zero if any key reliability acceptance check fails")
     args = ap.parse_args()
 
     fixtures = []
@@ -316,6 +388,14 @@ def main():
         ("C-major-chord-only", repeated_chord(0, "major"), "ambiguous", None),
         ("C-minor-chord-only", repeated_chord(0, "minor"), "ambiguous", None),
         ("whole-tone-cloud", whole_tone_cloud(), "ambiguous", None),
+        ("chromatic-motion", chromatic_motion(), "non-tonal", None),
+        ("random-notes-seed1", random_note_motion(seed=1), "non-tonal", None),
+        ("random-notes-seed2", random_note_motion(seed=2), "non-tonal", None),
+        ("random-trichords", random_trichords(), "non-tonal", None),
+        ("whole-tone-motion", whole_tone_motion(), "non-tonal", None),
+        ("C-to-Fsharp-major", two_distant_keys(), "ambiguous", None),
+        ("C-to-A-minor", relative_key_toggle(), "ambiguous", None),
+        ("short-C-major", progression(0, "major", duration_s=6.0), "ambiguous", None),
     ]
 
     results = []
@@ -325,14 +405,28 @@ def main():
             harmony = obj.get("harmony", {})
             chroma = harmony.get("chroma_mean_12_C_to_B", [])
             bins = [item.get("chroma", []) for item in harmony.get("chroma_bins_2s_C_to_B", [])]
+            meta = obj.get("meta", {})
             row = {
                 "fixture": name,
                 "kind": kind,
                 "expected_key": expected,
-                "estimated_key": obj.get("meta", {}).get("estimated_key"),
+                "estimated_key": meta.get("estimated_key"),
+                "key_reliable": meta.get("key_reliable"),
+                "key_note": meta.get("key_note"),
                 **candidate_metrics(chroma, bins),
             }
-            row["correct"] = expected is None or row["estimated_key"] == expected
+            if expected is not None:
+                row["correct"] = (
+                    row["estimated_key"] == expected
+                    and row["key_reliable"] is True
+                    and row["key_note"] is None
+                )
+            else:
+                row["correct"] = (
+                    row["estimated_key"] is None
+                    and row["key_reliable"] is False
+                    and bool(row["key_note"])
+                )
             results.append(row)
 
     columns = [
@@ -340,6 +434,7 @@ def main():
         "kind",
         "expected_key",
         "estimated_key",
+        "key_reliable",
         "max_min",
         "peak_mean",
         "entropy_concentration",
@@ -363,7 +458,10 @@ def main():
     non_tonal = [r for r in results if r["kind"] == "non-tonal"]
     ambiguous = [r for r in results if r["kind"] == "ambiguous"]
     print()
-    print(f"Tonal key accuracy: {sum(r['correct'] for r in tonal)}/{len(tonal)}")
+    tonal_pass = sum(r["correct"] for r in tonal)
+    control_pass = sum(r["correct"] for r in non_tonal + ambiguous)
+    print(f"Tonal key + reliability checks: {tonal_pass}/{len(tonal)}")
+    print(f"Negative/ambiguous rejection checks: {control_pass}/{len(non_tonal) + len(ambiguous)}")
     for metric in (
         "max_min",
         "peak_mean",
@@ -389,6 +487,16 @@ def main():
     if args.json:
         print("\nJSON")
         print(json.dumps(results, indent=2))
+
+    failures = [r["fixture"] for r in results if not r["correct"]]
+    if args.strict and failures:
+        print("\nFAILED RELIABILITY CHECKS:")
+        for fixture in failures:
+            print(f"- {fixture}")
+        raise SystemExit(1)
+
+    if not failures:
+        print("\nAll key reliability acceptance checks passed.")
 
 
 if __name__ == "__main__":
