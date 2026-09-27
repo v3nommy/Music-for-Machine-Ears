@@ -542,31 +542,6 @@ def estimate_key_from_chroma(chroma_mean):
     key_names = MAJOR_KEY_NAMES if mode == "major" else MINOR_KEY_NAMES
     return f"{key_names[idx]} {mode}", "Krumhansl-Schmuckler correlation on smooth STFT chroma"
 
-def key_regions(chroma, t_frames, duration_s, region_s=30):
-    """Estimate key per region_s-second window. Returns a list of {start, end, key} dicts."""
-    n_regions = max(1, int(math.ceil(duration_s / region_s)))
-    regions = []
-    for r in range(n_regions):
-        start = r * region_s
-        end = min((r + 1) * region_s, duration_s)
-        mask = (t_frames >= start) & (t_frames < end)
-        if np.any(mask):
-            cm = np.mean(chroma[:, mask], axis=1)
-            cm = normalize_chroma(cm)
-            key_name, _ = estimate_key_from_chroma(cm)
-        else:
-            key_name = regions[-1]["key"] if regions else "unknown"
-        regions.append({"start": float(round(start, 1)), "end": float(round(end, 1)), "key": key_name})
-
-    # Merge consecutive regions with the same key
-    merged = [regions[0]]
-    for r in regions[1:]:
-        if r["key"] == merged[-1]["key"]:
-            merged[-1]["end"] = r["end"]
-        else:
-            merged.append(r)
-    return merged
-
 def agg_to_1hz(values, times, duration_s):
     n = int(math.ceil(duration_s))
     out = np.zeros(n, dtype=float)
@@ -597,7 +572,7 @@ def peak_events(t_frames, values, kind, min_gap_s=12.0, top_k=12):
     selected.sort(key=lambda e: e["t_s"])
     return selected
 
-def build_interpretive_map(energy_1hz, bright_1hz, flux_1hz, onset_1hz, energy_thresh, bright_thresh, phases, window_s=10):
+def build_interpretive_map(energy_1hz, bright_1hz, flux_1hz, onset_1hz, energy_thresh, bright_thresh, window_s=10):
     N = len(energy_1hz)
     windows = []
     for start in range(0, N, window_s):
@@ -623,12 +598,8 @@ def build_interpretive_map(energy_1hz, bright_1hz, flux_1hz, onset_1hz, energy_t
     # --- Build narrative summary ---
     e_arr = np.array(energy_1hz, dtype=float)
     b_arr = np.array(bright_1hz, dtype=float)
-    f_arr = np.array(flux_1hz, dtype=float)
-
     peak_e_idx = int(np.argmax(e_arr))
     peak_b_idx = int(np.argmax(b_arr))
-    min_e_idx = int(np.argmin(e_arr))
-
     # Overall arc: compare first quarter vs peak vs last quarter
     q1 = max(1, N // 4)
     q3 = max(q1 + 1, 3 * N // 4)
@@ -661,20 +632,6 @@ def build_interpretive_map(energy_1hz, bright_1hz, flux_1hz, onset_1hz, energy_t
     else:
         narrative.append("Returns to roughly opening energy levels.")
 
-    # Phase-based highlights
-    if phases and len(phases) > 1:
-        phase_energies = []
-        for ph in phases:
-            a = int(max(0, math.floor(ph["start"])))
-            b_idx = int(min(N, math.ceil(ph["end"])))
-            if b_idx > a:
-                phase_energies.append((ph["label"], float(np.mean(e_arr[a:b_idx]))))
-        if phase_energies:
-            loudest = max(phase_energies, key=lambda x: x[1])
-            quietest = min(phase_energies, key=lambda x: x[1])
-            if loudest[0] != quietest[0]:
-                narrative.append(f"Loudest phase: {loudest[0]}. Quietest: {quietest[0]}.")
-
     return {
         "window_s": int(window_s),
         "thresholds": {
@@ -686,86 +643,6 @@ def build_interpretive_map(energy_1hz, bright_1hz, flux_1hz, onset_1hz, energy_t
         "summary_text": " ".join(narrative),
     }
 
-def detect_phases(energy_1hz, duration_s, min_phase_s=15, max_phases=8):
-    """Detect structural phases from energy contour using change-point detection."""
-    e = np.array(energy_1hz, dtype=float)
-    N = len(e)
-    if N < min_phase_s * 2:
-        return [{"label": "full", "start": 0.0, "end": duration_s}]
-
-    # Smooth heavily to get macro contour
-    win = max(min_phase_s, 15)
-    smoothed = smooth_1d(e, win=win)
-
-    # Compute derivative and find significant changes
-    deriv = np.diff(smoothed)
-    abs_deriv = np.abs(deriv)
-
-    # Threshold: points where change rate exceeds mean + 1.5*std
-    mu = float(np.mean(abs_deriv))
-    sd = float(np.std(abs_deriv))
-    threshold = mu + 1.5 * sd
-
-    # Find peaks in abs_deriv as candidate boundaries
-    candidates = []
-    for i in range(1, len(abs_deriv) - 1):
-        if abs_deriv[i] > threshold and abs_deriv[i] > abs_deriv[i-1] and abs_deriv[i] >= abs_deriv[i+1]:
-            candidates.append(i)
-
-    # Enforce minimum gap between boundaries
-    boundaries = []
-    last = -min_phase_s
-    for c in candidates:
-        if c - last >= min_phase_s and (N - c) >= min_phase_s:
-            boundaries.append(c)
-            last = c
-        if len(boundaries) >= max_phases - 1:
-            break
-
-    # If we found fewer than 1 boundary, fall back to energy-based splits
-    if len(boundaries) == 0:
-        # Split into 3-5 equal segments and label by relative energy
-        n_segments = min(5, max(3, N // 60))
-        seg_len = N // n_segments
-        boundaries = [seg_len * i for i in range(1, n_segments)]
-
-    # Build phases from boundaries
-    edges = [0] + boundaries + [N]
-    phases = []
-    for i in range(len(edges) - 1):
-        start_s = float(edges[i])
-        end_s = float(min(edges[i + 1], N))
-        seg_energy = float(np.mean(e[int(start_s):int(end_s)]))
-        phases.append({"start": start_s, "end": end_s, "_energy": seg_energy})
-
-    # Label phases by relative energy within the track
-    energies = [p["_energy"] for p in phases]
-    e_max = max(energies) if energies else 1.0
-    e_min = min(energies) if energies else 0.0
-    e_range = e_max - e_min if e_max > e_min else 1.0
-
-    for i, p in enumerate(phases):
-        rel = (p["_energy"] - e_min) / e_range
-        if i == 0:
-            label = "intro"
-        elif i == len(phases) - 1:
-            label = "outro"
-        elif rel > 0.7:
-            label = "climax"
-        elif rel > 0.4:
-            if i > 0 and p["_energy"] > phases[i-1]["_energy"]:
-                label = "build"
-            else:
-                label = "descent"
-        else:
-            label = "rest"
-        p["label"] = label
-
-    # Clean up internal keys
-    for p in phases:
-        del p["_energy"]
-
-    return phases
 
 # --- Mel filterbank (for mel spectrogram graph) ---
 def hz_to_mel(hz): return 2595.0 * np.log10(1.0 + hz/700.0)
@@ -803,7 +680,7 @@ def output_base_name(audio_path, slug=None):
     audio_stem = os.path.splitext(os.path.basename(audio_path))[0]
     return filename_slug(audio_stem)
 
-def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=None):
+def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
     os.makedirs(out_dir, exist_ok=True)
     output_base = output_base_name(audio_path, slug)
 
@@ -834,7 +711,6 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
     chroma_bins_2s = chroma_bins(chroma, t_frames, duration_s, bin_s=CHROMA_BIN_S)
 
     est_key, key_method = estimate_key_from_chroma(chroma_mean)
-    key_reg = key_regions(chroma, t_frames, duration_s, region_s=30)
 
     # 1Hz aggregation
     energy_1hz = agg_to_1hz(rms_f, t_frames, duration_s)
@@ -852,30 +728,15 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
     # Adaptive thresholds from this track's data
     energy_thresh, bright_thresh = compute_adaptive_thresholds(energy_1hz, bright_1hz)
 
-    # Phases: detect from signal or use manual override
-    if phases is None:
-        phases = detect_phases(energy_1hz, duration_s)
-
-    def mean_over(start_s, end_s, arr):
-        a = int(max(0, math.floor(start_s)))
-        b = int(min(len(arr), math.ceil(end_s)))
-        if b <= a:
-            return float(arr[a]) if a < len(arr) else 0.0
-        return float(np.mean(arr[a:b]))
-
-    phase_stats = []
-    for ph in phases:
-        phase_stats.append({
-            "label": ph["label"],
-            "start": float(round(ph["start"], 3)),
-            "end": float(round(ph["end"], 3)),
-            "energy_mean": float(round(mean_over(ph["start"], ph["end"], energy_1hz), 6)),
-            "brightness_mean_hz": float(round(mean_over(ph["start"], ph["end"], bright_1hz), 3)),
-            "flux_mean": float(round(mean_over(ph["start"], ph["end"], flux_1hz), 6)),
-            "onset_mean": float(round(mean_over(ph["start"], ph["end"], onset_1hz), 6)),
-        })
-
-    interpretive = build_interpretive_map(energy_1hz, bright_1hz, flux_1hz, onset_1hz, energy_thresh, bright_thresh, phases, window_s=WINDOW_S)
+    interpretive = build_interpretive_map(
+        energy_1hz,
+        bright_1hz,
+        flux_1hz,
+        onset_1hz,
+        energy_thresh,
+        bright_thresh,
+        window_s=WINDOW_S,
+    )
 
     # ---- Graphs ----
     # 1) Waveform
@@ -945,7 +806,7 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
             "analysis_notes": (
                 "MME fallback pipeline: soundfile/scipy load+resample, scipy.signal.stft, "
                 "RMS/centroid/flux/onset proxy, native rhythm onset + FFT autocorr + DP beat tracking, "
-                "smooth STFT chroma + key-profile correlation, 1Hz aggregation, phases+stats, 10s interpretive map."
+                "smooth STFT chroma + key-profile correlation, 1Hz aggregation, events, 10s interpretive map."
             ),
             "estimated_key": est_key,
             "key_method": key_method,
@@ -961,12 +822,9 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None, phases=Non
         "harmony": {
             "chroma_mean_12_C_to_B": [float(x) for x in chroma_mean],
             "chroma_bins_2s_C_to_B": chroma_bins_2s,
-            "key_regions": key_reg,
             "chroma_method": "smooth STFT chroma filterbank",
         },
         "structure": {
-            "phases": [{"label":p["label"], "start": float(round(p["start"],3)), "end": float(round(p["end"],3))} for p in phases],
-            "phase_stats": phase_stats,
             "events": events,
         },
         "interpretive_map": interpretive,
