@@ -60,6 +60,8 @@ Optional metadata:
 
 The generated package contains the sensory-object JSON and supporting graphs.
 
+Output filenames use a normalized slug derived from the audio filename stem: lowercased, with non-alphanumeric runs replaced by hyphens. For example, `jpeg_lullaby.wav` produces `jpeg-lullaby_sensory_object.json`. Use `--slug "<name>"` to choose the output base name explicitly.
+
 Do not read the full sensory-object JSON yourself before sequential listening.
 
 ## 2. Choose listening state location
@@ -240,6 +242,7 @@ If one of these seems suggested by the experience, it may shape your metaphor or
 - **Spectral flux and onset strength** are proxies for change and transient activity. They do not identify what caused the change.
 - **Rhythm** is trustworthy only when `pulse_reliable` is true. `tempo_confidence` is a score, not a probability; `confidence_gate` reports the threshold used to accept or reject the pulse.
 - **Salient events** mark notable measured changes, not named musical events or specific sounds.
+- **Interpretive-map tiers** are relative to the current track's own 25th/75th-percentile thresholds. They describe variation within that song; they cannot tell you that the entire piece is objectively quiet, loud, dark, bright, or otherwise extreme compared with other music.
 
 ### Interpretation
 
