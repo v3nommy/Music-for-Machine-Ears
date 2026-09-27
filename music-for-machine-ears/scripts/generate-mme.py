@@ -28,8 +28,8 @@ CHROMA_BIN_S = 2
 # do not dominate the tonic/mode estimate.
 SENSORY_CHROMA_OCTAVE_CENTER = 5.0
 SENSORY_CHROMA_OCTAVE_WIDTH = 2.0
-KEY_CHROMA_OCTAVE_CENTER = 4.0
-KEY_CHROMA_OCTAVE_WIDTH = 2.0
+KEY_CHROMA_OCTAVE_CENTER = 3.5
+KEY_CHROMA_OCTAVE_WIDTH = 1.5
 
 # Native rhythm tracker defaults. These are intentionally few and centralized so
 # the public skill stays lightweight; the external harness is the place to tune them.
