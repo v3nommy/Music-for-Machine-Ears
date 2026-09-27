@@ -110,6 +110,7 @@ def make_slice(obj, index, seconds):
             "harmony": {"chroma_bins_2s_C_to_B": chroma},
             "structure": {"events": events},
             "rhythm": {
+                "pulse_reliable": rhythm.get("pulse_reliable"),
                 "beat_times_s": local_times,
                 "beat_strength": local_strength,
                 "beats_count": 0 if local_times is None else len(local_times),
@@ -168,6 +169,8 @@ def make_summary(obj, input_path, journal_path):
                 "rhythm_method": rhythm.get("rhythm_method"),
                 "tempo_bpm": rhythm.get("tempo_bpm"),
                 "tempo_confidence": rhythm.get("tempo_confidence"),
+                "confidence_gate": rhythm.get("confidence_gate"),
+                "pulse_reliable": rhythm.get("pulse_reliable"),
                 "beats_count": rhythm.get("beats_count"),
                 "note": rhythm.get("note"),
             },
