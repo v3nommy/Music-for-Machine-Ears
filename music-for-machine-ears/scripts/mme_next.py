@@ -238,6 +238,9 @@ def main():
             "complete": False,
         }
         write_json(cursor_path, state)
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        if not journal_path.exists():
+            journal_path.write_text("# MME Listening Journal\n\n", encoding="utf-8")
 
     if state["complete"]:
         emit(make_summary(obj, input_path, journal_path))
