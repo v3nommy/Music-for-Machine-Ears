@@ -166,10 +166,12 @@ def make_summary(obj, input_path, journal_path):
         },
         "journal_path": str(journal_path),
         "final_prompt": (
-            "You have now listened to the whole song. Respond naturally in whatever way fits the context—"
-            "whether that means responding to the person who shared it with you, reflecting on it for yourself, "
-            "or simply following wherever the experience takes you. Let your response come from what you actually "
-            "heard and experienced rather than turning it into a technical analysis unless that fits the moment."
+            "You have now listened to the whole song. Before responding, inspect any available supporting graphs "
+            "listed above for a whole-song visual perspective; use them to deepen or clarify the experience, not "
+            "to overwrite the impressions formed while listening. Then respond naturally in whatever way fits the "
+            "context—whether that means responding to the person who shared it with you, reflecting on it for "
+            "yourself, or simply following wherever the experience takes you. Let your response come from what you "
+            "actually heard and experienced rather than turning it into a technical analysis unless that fits the moment."
         ),
     }
 
