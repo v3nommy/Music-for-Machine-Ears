@@ -23,6 +23,14 @@ N_FFT = 2048
 WINDOW_S = 10
 CHROMA_BIN_S = 2
 
+# Sensory chroma favors the middle/upper register for a useful perceptual view.
+# Global key estimation uses a separate lower/mid weighting so upper harmonics
+# do not dominate the tonic/mode estimate.
+SENSORY_CHROMA_OCTAVE_CENTER = 5.0
+SENSORY_CHROMA_OCTAVE_WIDTH = 2.0
+KEY_CHROMA_OCTAVE_CENTER = 4.0
+KEY_CHROMA_OCTAVE_WIDTH = 2.0
+
 # Native rhythm tracker defaults. These are intentionally few and centralized so
 # the public skill stays lightweight; the external harness is the place to tune them.
 RHYTHM_GAMMA = 100.0
@@ -451,10 +459,12 @@ def analyze_rhythm(mag, t_frames, frame_rate):
         "note": note,
     }
 
-def chroma_from_mag(f, mag):
+def chroma_from_mag(f, mag, octave_center=SENSORY_CHROMA_OCTAVE_CENTER, octave_width=SENSORY_CHROMA_OCTAVE_WIDTH):
     # Smooth STFT-to-chroma projection. Hard-assigning each FFT bin to one pitch
-    # class lets harmonics dominate the key estimate; a smooth filterbank is
+    # class lets harmonics dominate pitch-class evidence; a smooth filterbank is
     # substantially more stable while keeping the implementation dependency-free.
+    # The sensory representation and global key estimator intentionally use
+    # different octave weightings.
     if mag.size == 0 or mag.shape[1] == 0:
         return np.zeros((12, mag.shape[1] if mag.ndim == 2 else 0), dtype=np.float32)
 
@@ -474,10 +484,10 @@ def chroma_from_mag(f, mag):
     col_norm = np.sqrt(np.sum(weights ** 2, axis=0, keepdims=True)) + 1e-12
     weights /= col_norm
 
-    # Favor the musically useful middle octaves while retaining bass and upper
+    # Favor the requested register while retaining neighboring bass/upper
     # harmonics. Octave numbers are referenced so A440 is octave 4.
     octave_position = semitone_bins / 12.0
-    weights *= np.exp(-0.5 * ((octave_position - 5.0) / 2.0) ** 2)[None, :]
+    weights *= np.exp(-0.5 * ((octave_position - octave_center) / octave_width) ** 2)[None, :]
     weights = np.roll(weights, -3, axis=0)  # C..B ordering
 
     raw = weights @ (mag.astype(float) ** 2)
@@ -704,13 +714,33 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
     frame_rate = sr / HOP
     rhythm = analyze_rhythm(mag, t_frames, frame_rate)
 
-    # Harmony: smooth STFT chroma
-    chroma = chroma_from_mag(f, mag)
+    # Harmony: sensory chroma remains middle/upper weighted for the listener.
+    chroma = chroma_from_mag(
+        f,
+        mag,
+        octave_center=SENSORY_CHROMA_OCTAVE_CENTER,
+        octave_width=SENSORY_CHROMA_OCTAVE_WIDTH,
+    )
     chroma_mean = np.mean(chroma, axis=1)
     chroma_mean = normalize_chroma(chroma_mean)
     chroma_bins_2s = chroma_bins(chroma, t_frames, duration_s, bin_s=CHROMA_BIN_S)
 
-    est_key, key_method = estimate_key_from_chroma(chroma_mean)
+    # Global key estimation uses a separate lower/mid-weighted chroma path.
+    # This keeps the sensory representation unchanged while reducing cases where
+    # upper harmonics overpower the track's tonic/mode evidence.
+    key_chroma = chroma_from_mag(
+        f,
+        mag,
+        octave_center=KEY_CHROMA_OCTAVE_CENTER,
+        octave_width=KEY_CHROMA_OCTAVE_WIDTH,
+    )
+    key_chroma_mean = np.mean(key_chroma, axis=1)
+    key_chroma_mean = normalize_chroma(key_chroma_mean)
+    est_key, key_method = estimate_key_from_chroma(key_chroma_mean)
+    key_method = (
+        f"{key_method}; lower/mid key-analysis weighting "
+        f"(octave center {KEY_CHROMA_OCTAVE_CENTER:.1f}, width {KEY_CHROMA_OCTAVE_WIDTH:.1f})"
+    )
 
     # 1Hz aggregation
     energy_1hz = agg_to_1hz(rms_f, t_frames, duration_s)
@@ -806,7 +836,8 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
             "analysis_notes": (
                 "MME fallback pipeline: soundfile/scipy load+resample, scipy.signal.stft, "
                 "RMS/centroid/flux/onset proxy, native rhythm onset + FFT autocorr + DP beat tracking, "
-                "smooth STFT chroma + key-profile correlation, 1Hz aggregation, events, 10s interpretive map."
+                "smooth STFT sensory chroma + separate lower/mid key-analysis chroma + key-profile correlation, "
+                "1Hz aggregation, events, 10s interpretive map."
             ),
             "estimated_key": est_key,
             "key_method": key_method,
