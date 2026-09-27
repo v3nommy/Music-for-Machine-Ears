@@ -12,7 +12,7 @@ Music for Machine Ears (MME) is a listening experience, not just an audio-analys
 - Prefer **sequential listening mode** with `mme_next.py`.
 - Do **not** open or read the full sensory-object JSON during sequential listening. That reveals later parts of the song before they happen.
 - Do **not** inspect the whole-song graphs until the sequential listening is complete.
-- Complete the listening sequence autonomously in the same turn. Do not make the user shuttle slices or journal notes back and forth.
+- Complete the listening sequence autonomously without making the user shuttle slices or journal notes back and forth. Normally finish in the same turn; if execution is interrupted, resume from the saved listening state rather than restarting.
 - After every slice, follow its returned `journal_prompt` and write a brief private listening note before requesting the next slice.
 - Keep the journal private unless the user asks to see it or the context clearly calls for sharing it.
 - Treat the sensory data as music to experience, not as a checklist of measurements to report.
@@ -60,7 +60,7 @@ Do not read the full sensory-object JSON yourself before sequential listening.
 
 ## 2. Choose listening state location
 
-`mme_next.py` keeps the listening session on disk so that the current position and private journal survive between calls.
+`mme_next.py` keeps the listening cursor and private journal on disk. Sequential listening therefore requires a writable filesystem that persists between the script calls used for that listening session.
 
 By default, state is stored beside the sensory object:
 
@@ -75,17 +75,21 @@ By default, state is stored beside the sensory object:
 
 The journal is **private by default, not necessarily ephemeral**. Do not automatically include it in your response to the user.
 
-Before beginning, consider whether the current filesystem is temporary or durable and whether this listening experience is worth preserving.
+Treat filesystem persistence as one of these three modes:
 
-If you want the state and journal stored somewhere else, start the session with:
+1. **Persistent for the current task/turn:** sequential listening works normally. The state may disappear afterward, which is fine for a one-off listen.
+2. **Durable across later turns or sessions:** use a durable directory with `--state-dir` if you want the cursor and journal to survive and be resumable later.
+3. **Not persistent between script calls:** sequential listening cannot preserve its cursor or journal. Use the full-object fallback instead.
+
+MME cannot reliably infer future sandbox lifetime from inside one script call, so use what the environment tells you about its filesystem. A simple write succeeding proves writability, not long-term durability.
+
+To store state somewhere else:
 
 ```bash
 <python> scripts/mme_next.py "<sensory-object-path>" --state-dir "<directory>"
 ```
 
-Use a durable location when you want the listening journal to remain available after the current environment or session ends. For an ordinary one-off listen, the default location is fine.
-
-Once a listening session has started with a particular state location, use that same location for every remaining call.
+Once a listening session has started with a particular state location, use that same location for every remaining call and any later resume.
 
 ## 3. Listen sequentially
 
@@ -160,6 +164,22 @@ Do not default to a technical audio-analysis report unless that is what the cont
 If one or more graphs are unavailable, continue with the listening experience and the final summary rather than treating the missing graph as a failure.
 
 ## 6. Session controls
+
+### Resume an interrupted listen
+
+If execution stops after a slice was released but before its private note was saved, do **not** restart the song and do not guess what the missing slice contained.
+
+Replay the pending slice without advancing:
+
+```bash
+<python> scripts/mme_next.py "<sensory-object-path>" --resume
+```
+
+If using a custom state directory, include the same `--state-dir`.
+
+The replayed payload includes `"resumed": true`. Experience that slice again, form the private note, then continue normally with `--note`.
+
+If the session had already completed, `--resume` returns the final summary. If no slice is pending, it continues from the saved cursor.
 
 To inspect the private journal:
 
