@@ -196,6 +196,9 @@ def main():
     ap.add_argument("--show-journal", action="store_true")
     args = ap.parse_args()
 
+    if args.resume and (args.note is not None or args.reset or args.show_journal):
+        raise SystemExit("--resume is a replay-only recovery action; do not combine it with --note, --reset, or --show-journal.")
+
     input_path = args.sensory_object.resolve()
     if not input_path.is_file():
         raise SystemExit(f"Sensory object file not found: {input_path}")
