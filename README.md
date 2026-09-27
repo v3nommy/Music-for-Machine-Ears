@@ -73,7 +73,7 @@ Use whichever Python 3 command works in your environment (`python3`, `python`, o
 Generate an MME sensory object:
 
 ```bash
-python3 generate-mme.py --audio "my-song.wav" --out_dir "./out"
+python3 music-for-machine-ears/scripts/generate-mme.py --audio "my-song.wav" --out_dir "./out"
 ```
 
 This creates:
@@ -93,7 +93,7 @@ For sequential listening, give the AI access to the generated files and `mme_nex
 The AI begins with:
 
 ```bash
-python3 mme_next.py "./out/my-song_sensory_object.json"
+python3 music-for-machine-ears/scripts/mme_next.py "./out/my-song_sensory_object.json"
 ```
 
 From there, it handles the listening sequence itself. It receives one passage, writes a brief private listening note, passes that note back to `mme_next.py` to unlock the next passage, and continues until the song is complete.
@@ -101,7 +101,7 @@ From there, it handles the listening sequence itself. It receives one passage, w
 A typical follow-up call looks like:
 
 ```bash
-python3 mme_next.py "./out/my-song_sensory_object.json" --note "..."
+python3 music-for-machine-ears/scripts/mme_next.py "./out/my-song_sensory_object.json" --note "..."
 ```
 
 All of that can happen within a single turn. The human doesn’t need to shuttle slices or journal entries back and forth.
@@ -116,12 +116,12 @@ If sequential listening isn’t practical, the full sensory object and graphs ca
 
 | File | What it’s for |
 |---|---|
-| `generate-mme.py` | Turns audio into the MME sensory object and supporting graphs |
-| `mme_next.py` | Serves the song sequentially and keeps the private listening journal |
-| `SKILL.md` | The authoritative workflow for an AI using MME |
+| `music-for-machine-ears/SKILL.md` | The authoritative workflow for an AI using MME |
+| `music-for-machine-ears/scripts/generate-mme.py` | Turns audio into the MME sensory object and supporting graphs |
+| `music-for-machine-ears/scripts/mme_next.py` | Serves the song sequentially and keeps the private listening journal |
 
 This repository doesn’t include music files. Bring your own `.wav`.
 
 ---
 
-**Want an AI to use MME as a skill?** Start with [`SKILL.md`](SKILL.md).
+**Want an AI to use MME as a skill?** Start with [`music-for-machine-ears/SKILL.md`](music-for-machine-ears/SKILL.md).
