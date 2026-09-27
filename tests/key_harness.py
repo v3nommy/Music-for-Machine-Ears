@@ -3,11 +3,13 @@
 
 This harness does NOT define a production reliability gate. It treats
 generate-mme.py as a black box, creates tonal, non-tonal, and ambiguous WAV
-fixtures, then measures candidate reliability signals from the public
-chroma_mean_12_C_to_B output.
+fixtures, and checks the public estimated_key output.
 
-Use the resulting separation between fixture classes to choose a reliability
-metric/gate before changing production key output.
+Candidate reliability metrics below are still measured from the listener-facing
+chroma_mean_12_C_to_B sensory representation. Production key estimation now uses
+a separate lower/mid-weighted chroma path, so those sensory-chroma metrics are
+diagnostic only and must not be treated as direct confidence measures for the
+key estimator.
 
 Example:
   python tests/key_harness.py \
