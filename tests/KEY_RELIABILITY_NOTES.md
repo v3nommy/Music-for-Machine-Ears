@@ -105,8 +105,42 @@ A separate null sweep covered 240 white-noise, pink-noise, and percussion contro
 across 8, 12, 20, and 40 seconds. Their key-chroma dispersion stayed below the
 0.04 gate (observed maximum ~0.033).
 
+## Tuning-robustness blocker
+
+Additional stress testing exposed a failure mode that the current gate does not
+detect: small global tuning offsets can change the key estimator while leaving
+all of the reliability evidence looking strong.
+
+Using synthetic known-key progressions pitch-shifted without changing their
+musical key:
+
+- at -10 cents: the clean 24-key set still behaves well, but some real-song
+  controls can already flip to a related key
+- at -25 cents: only 12/24 synthetic major/minor labels remain correct, while
+  the current reliability gate still accepts all 24
+- at -40 cents: 0/24 synthetic labels remain correct, while the gate can still
+  accept the estimates
+
+Pitch-shifted real controls showed the same class of problem (for example,
+related major/minor or neighboring-key flips on some tracks).
+
+Several attempted fixes were rejected:
+
+- widening the key-chroma pitch filters reduced accuracy on the original real
+  corpus, including regressing Adele
+- nearby octave-center/width settings produced the same detuning failures
+- averaging several nearby pitch-reference grids did not improve the failures
+- a lightweight tuning estimator works well on clean synthetic tones but can
+  infer misleading tuning offsets on dense real mixes, so automatically
+  correcting the audio from that estimate is not safe yet
+
+This means the current reliability candidate is **not ready to promote to
+`dev`**. A reliable flag must not confidently certify an estimate that is
+known to be fragile to ordinary tuning variation.
+
 ## Status
 
-Promising experimental candidate. Do not copy to `dev` solely because it passes
-this corpus. The purpose of `dev-tinker` is to keep this implementation and its
-tests isolated until its semantics and failure behavior are accepted.
+Promising experimental candidate with one identified blocker: tuning robustness.
+Keep it on `dev-tinker` until that failure mode is either handled or the
+reliability semantics are deliberately narrowed and documented. Do not copy the
+current gate to `dev` yet.
