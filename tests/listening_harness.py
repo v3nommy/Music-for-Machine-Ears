@@ -19,6 +19,8 @@ def synthetic_object():
             "schema_version": "MME",
             "duration_s": duration,
             "estimated_key": "D minor",
+            "key_reliable": True,
+            "key_note": None,
             "key_method": "test",
             "source_file": "spoiler-title.wav",
         },
@@ -115,7 +117,13 @@ def main():
         rc, summary, summary_raw = run(args.reader, sensory, state, "--note", "The ending settles after the rise.")
         check(rc == 0 and summary.get("stage") == "summary", "final note releases summary", failures)
         summary_text = json.dumps(summary)
-        check('"estimated_key": "D minor"' in summary_text and '"tempo_bpm": 120.0' in summary_text, "summary reveals global key and tempo", failures)
+        check(
+            '"estimated_key": "D minor"' in summary_text
+            and '"key_reliable": true' in summary_text
+            and '"tempo_bpm": 120.0' in summary_text,
+            "summary reveals reliable global key and tempo",
+            failures,
+        )
         check("time_series_1hz" not in summary_text and "chroma_bins_2s_C_to_B" not in summary_text, "summary does not dump raw slices again", failures)
         check("Whole-song hindsight." in summary_text, "summary reveals non-phase interpretive hindsight", failures)
         check("\\n" not in summary_raw.strip(), "summary output is compact JSON", failures)
