@@ -443,6 +443,8 @@ def analyze_rhythm(mag, t_frames, frame_rate):
         "rhythm_method": "native_dp_v1",
         "tempo_bpm": None if tempo_bpm is None else float(round(tempo_bpm, 3)),
         "tempo_confidence": float(round(confidence, 3)),
+        "confidence_gate": float(RHYTHM_CONFIDENCE_GATE),
+        "pulse_reliable": bool(reliable),
         "beats_count": 0 if beat_times is None else int(len(beat_times)),
         "beat_times_s": None if beat_times is None else [float(round(x, 3)) for x in beat_times],
         "beat_strength": beat_strength,
