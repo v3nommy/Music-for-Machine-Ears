@@ -25,14 +25,18 @@ MME expects these files to be available together:
 ```text
 <skill-directory>/
 ├── SKILL.md
-└── scripts/
-    ├── generate-mme.py
-    └── mme_next.py
+├── scripts/
+│   ├── generate-mme.py
+│   └── mme_next.py
+└── references/
+    └── EXPLANATION.md
 ```
 
 Use a working Python 3 interpreter available in the environment: commonly `python3`, `python`, or `py -3`. In the commands below, `<python>` means whichever Python 3 command works in the current environment.
 
 Run from the skill directory, or call the scripts by their explicit paths. The commands below assume the working directory is the skill directory.
+
+`references/EXPLANATION.md` is optional background for humans or agents who want the deeper technical/design rationale. It is not required for an ordinary listening session.
 
 ## 1. Prepare the sensory object
 
