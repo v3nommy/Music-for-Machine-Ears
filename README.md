@@ -80,6 +80,14 @@ The whole system is deliberately lightweight, too. It uses ordinary signal proce
 
 ## Quick start
 
+### Install the skill
+
+The easiest way to install MME is to download **`music-for-machine-ears.skill`** from the [latest GitHub Release](https://github.com/v3nommy/Music-for-Machine-Ears/releases/latest) and import it into a compatible agent or harness.
+
+You can also install or point your agent directly at the [`music-for-machine-ears/`](music-for-machine-ears/) folder in this repository. The folder and the packaged `.skill` contain the same skill.
+
+### Run from source
+
 Install the required packages:
 
 ```bash
