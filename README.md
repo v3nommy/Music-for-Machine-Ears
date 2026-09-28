@@ -1,5 +1,9 @@
 # Music for Machine Ears
 
+<p align="center">
+  <img src="assets/mme-banner.gif" alt="Music for Machine Ears animated banner" width="880">
+</p>
+
 *Letting an AI listen to a song, not just read about it.*
 
 > **Still in development.** MME’s sensory representation will keep expanding to capture more of what makes music music, with lyrics planned as part of the listening experience too. Issues, ideas, and contributions are very welcome.
@@ -124,6 +128,18 @@ If sequential listening isn’t practical, the full sensory object and graphs ca
 | `music-for-machine-ears/references/EXPLANATION.md` | The deeper design and technical explanation: what MME measures, why withholding matters, and where its limits are |
 
 This repository doesn’t include music files. Bring your own `.wav`.
+
+---
+
+## License
+
+MME is released under the custom **Music for Machine Ears License 1.0**.
+
+In plain language: MME is free to use, study, modify, and redistribute with attribution. Modified versions must preserve attribution, remain under the same license, and keep their source available. You may not sell MME itself, sell a modified version of MME, or gate access primarily to MME's functionality behind payment without separate permission.
+
+MME may still be used as one component of a larger product or service, including a commercial one, when that larger product's primary value is independent of MME and the MME-specific license terms are preserved.
+
+This summary is for convenience; the full [`LICENSE`](LICENSE) controls.
 
 ---
 
