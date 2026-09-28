@@ -26,8 +26,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install validator dependency
-        run: python -m pip install --disable-pip-version-check pyyaml
+      - name: Install validation and runtime dependencies
+        run: python -m pip install --disable-pip-version-check pyyaml numpy scipy matplotlib soundfile
 
       - name: Fetch pinned Agent Skills packager
         shell: bash
@@ -100,10 +100,128 @@ jobs:
                   print(f"  {name}")
           PY
 
+      - name: Extract built package
+        shell: bash
+        run: |
+          rm -rf /tmp/mme-skill-smoke
+          mkdir -p /tmp/mme-skill-smoke
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+
+          archive = Path("dist/music-for-machine-ears.skill")
+          destination = Path("/tmp/mme-skill-smoke")
+          with zipfile.ZipFile(archive) as zf:
+              zf.extractall(destination)
+          print(f"Extracted package to {destination}")
+          PY
+
+      - name: Compile extracted scripts
+        shell: bash
+        run: |
+          PKG=/tmp/mme-skill-smoke/music-for-machine-ears
+          python -m py_compile \
+            "$PKG/scripts/generate-mme.py" \
+            "$PKG/scripts/mme_next.py"
+          python "$PKG/scripts/generate-mme.py" --help >/dev/null
+          python "$PKG/scripts/mme_next.py" --help >/dev/null
+
+      - name: Smoke test extracted package
+        shell: bash
+        run: |
+          PKG=/tmp/mme-skill-smoke/music-for-machine-ears
+          WORK=/tmp/mme-runtime-smoke
+          rm -rf "$WORK"
+          mkdir -p "$WORK/out" "$WORK/state"
+
+          python - <<'PY'
+          import math
+          import struct
+          import wave
+          from pathlib import Path
+
+          sample_rate = 22050
+          duration_s = 8.0
+          notes_hz = (261.625565, 329.627557, 391.995436)
+          output = Path("/tmp/mme-runtime-smoke/test-tone.wav")
+
+          with wave.open(str(output), "wb") as wav:
+              wav.setnchannels(1)
+              wav.setsampwidth(2)
+              wav.setframerate(sample_rate)
+              frames = []
+              for index in range(int(sample_rate * duration_s)):
+                  t = index / sample_rate
+                  pulse = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(2 * math.pi * 2 * t))
+                  sample = sum(math.sin(2 * math.pi * freq * t) for freq in notes_hz) / len(notes_hz)
+                  sample *= 0.32 * pulse
+                  sample = max(-1.0, min(1.0, sample))
+                  frames.append(struct.pack("<h", int(sample * 32767)))
+              wav.writeframes(b"".join(frames))
+          PY
+
+          cd "$PKG"
+          python scripts/generate-mme.py \
+            --audio "$WORK/test-tone.wav" \
+            --out_dir "$WORK/out" \
+            --title "CI Smoke" \
+            --artist "MME"
+
+          SENSORY="$WORK/out/test-tone_sensory_object.json"
+          test -f "$SENSORY"
+          test -f "$WORK/out/test-tone_waveform.png"
+          test -f "$WORK/out/test-tone_mel_spectrogram.png"
+          test -f "$WORK/out/test-tone_rms_energy.png"
+          test -f "$WORK/out/test-tone_spectral_centroid.png"
+
+          python scripts/mme_next.py \
+            "$SENSORY" \
+            --state-dir "$WORK/state" \
+            > "$WORK/first.json"
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/mme-runtime-smoke/first.json").read_text())
+          assert payload["stage"] == "slice", payload
+          assert payload["slice_count"] >= 1, payload
+          assert payload.get("journal_prompt"), payload
+          PY
+
+          python scripts/mme_next.py \
+            "$SENSORY" \
+            --state-dir "$WORK/state" \
+            --note "CI smoke-test listening note." \
+            > "$WORK/final.json"
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          work = Path("/tmp/mme-runtime-smoke")
+          payload = json.loads((work / "final.json").read_text())
+          assert payload["stage"] == "summary", payload
+          assert payload.get("final_prompt"), payload
+          assert (work / "state" / "cursor.json").is_file()
+          assert (work / "state" / "journal.md").is_file()
+          print("Extracted-package runtime smoke test passed.")
+          PY
+
+      - name: Generate and verify SHA-256 checksum
+        shell: bash
+        run: |
+          cd dist
+          sha256sum music-for-machine-ears.skill > music-for-machine-ears.skill.sha256
+          sha256sum -c music-for-machine-ears.skill.sha256
+          cat music-for-machine-ears.skill.sha256
+
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
           name: music-for-machine-ears-skill-main
-          path: dist/music-for-machine-ears.skill
+          path: |
+            dist/music-for-machine-ears.skill
+            dist/music-for-machine-ears.skill.sha256
           if-no-files-found: error
           retention-days: 14
