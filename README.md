@@ -4,9 +4,9 @@
   <img src="assets/mme-banner.gif" alt="Music for Machine Ears animated banner" width="880">
 </p>
 
-<br><br>
-
 *Letting an AI listen to a song, not just read about it.*
+
+<br><br>
 
 > **Still in development.** MME’s sensory representation will keep expanding to capture more of what makes music music, with lyrics planned as part of the listening experience too. Issues, ideas, and contributions are very welcome.
 
