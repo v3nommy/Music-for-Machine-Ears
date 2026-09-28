@@ -127,6 +127,18 @@ This repository doesn’t include music files. Bring your own `.wav`.
 
 ---
 
+## License
+
+MME is released under the custom **Music for Machine Ears License 1.0**.
+
+In plain language: MME is free to use, study, modify, and redistribute with attribution. Modified versions must preserve attribution, remain under the same license, and keep their source available. You may not sell MME itself, sell a modified version of MME, or gate access primarily to MME's functionality behind payment without separate permission.
+
+MME may still be used as one component of a larger product or service, including a commercial one, when that larger product's primary value is independent of MME and the MME-specific license terms are preserved.
+
+This summary is for convenience; the full [`LICENSE`](LICENSE) controls.
+
+---
+
 **Want an AI to use MME as a skill?** Start with [`music-for-machine-ears/SKILL.md`](music-for-machine-ears/SKILL.md).
 
 **Want the deeper how and why?** Read [`music-for-machine-ears/references/EXPLANATION.md`](music-for-machine-ears/references/EXPLANATION.md).
