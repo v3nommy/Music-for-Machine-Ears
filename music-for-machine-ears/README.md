@@ -1,0 +1,57 @@
+# Music for Machine Ears
+
+Music for Machine Ears (MME) is a portable AI skill for letting text-based agents experience music as it unfolds. It turns audio into a time-evolving sensory representation, then supports sequential listening so the song can arrive piece by piece rather than all at once.
+
+## Start here
+
+- **Agents:** read and follow [`SKILL.md`](SKILL.md). It is the authoritative execution workflow.
+- **Humans:** this README gives the package overview. For the deeper design and technical rationale, see [`references/EXPLANATION.md`](references/EXPLANATION.md).
+
+## Requirements
+
+MME requires:
+
+- Python 3.11+
+- NumPy
+- SciPy
+- Matplotlib
+
+SoundFile is recommended for robust audio loading. FFmpeg is optional and is used for non-WAV input or WAV repair when needed.
+
+Install the Python dependencies with:
+
+```bash
+python -m pip install numpy scipy matplotlib soundfile
+```
+
+Use the Python 3 command appropriate to your environment, such as `python3`, `python`, or `py -3`.
+
+Sequential listening also requires a writable filesystem that persists across the script calls in a listening session.
+
+## Package contents
+
+```text
+music-for-machine-ears/
+├── README.md
+├── SKILL.md
+├── LICENSE
+├── scripts/
+│   ├── generate-mme.py
+│   └── mme_next.py
+└── references/
+    └── EXPLANATION.md
+```
+
+- `SKILL.md` — authoritative instructions for the agent
+- `scripts/generate-mme.py` — generates the MME sensory object and supporting graphs
+- `scripts/mme_next.py` — serves the song sequentially and manages listening state/private journaling
+- `references/EXPLANATION.md` — deeper explanation of MME's design, measurements, and limitations
+- `LICENSE` — Music for Machine Ears License 1.0
+
+Keep these files together as one skill directory when installing or sharing MME.
+
+## Project
+
+Original project: https://github.com/v3nommy/Music-for-Machine-Ears
+
+MME is distributed under the terms in [`LICENSE`](LICENSE).
