@@ -29,7 +29,9 @@ MME expects these files to be available together:
 
 ```text
 <skill-directory>/
+├── README.md
 ├── SKILL.md
+├── LICENSE
 ├── scripts/
 │   ├── generate-mme.py
 │   └── mme_next.py
@@ -37,11 +39,19 @@ MME expects these files to be available together:
     └── EXPLANATION.md
 ```
 
-Use a working Python 3 interpreter available in the environment: commonly `python3`, `python`, or `py -3`. In the commands below, `<python>` means whichever Python 3 command works in the current environment.
+Use a working Python 3.11+ interpreter available in the environment: commonly `python3`, `python`, or `py -3`. In the commands below, `<python>` means whichever Python 3 command works in the current environment.
+
+Before generating a sensory object, ensure the required Python packages are available. If imports are missing and package installation is permitted, install them with:
+
+```bash
+<python> -m pip install numpy scipy matplotlib soundfile
+```
+
+NumPy, SciPy, and Matplotlib are required. SoundFile is recommended for robust audio loading. FFmpeg is optional for non-WAV input or WAV repair. If dependencies cannot be installed, use an existing MME sensory object if one is available rather than repeatedly retrying the generator.
 
 Run from the skill directory, or call the scripts by their explicit paths. The commands below assume the working directory is the skill directory.
 
-`references/EXPLANATION.md` is optional background for humans or agents who want the deeper technical/design rationale. It is not required for an ordinary listening session.
+`README.md` is the human-facing package overview. `references/EXPLANATION.md` is optional background for humans or agents who want the deeper technical/design rationale. Neither is required for an ordinary listening session.
 
 ## 1. Prepare the sensory object
 
