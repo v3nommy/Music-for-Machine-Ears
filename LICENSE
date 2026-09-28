@@ -1,0 +1,93 @@
+Music for Machine Ears License 1.0
+
+Copyright (c) 2026 v3nommy
+
+This license applies to Music for Machine Ears ("MME"), including its software,
+scripts, skill instructions, documentation, tests, and other original material
+distributed with the project.
+
+Permission is granted, free of charge, to any person obtaining a copy of MME to
+use, study, reproduce, modify, and redistribute MME, including modified versions,
+subject to the following conditions:
+
+1. Attribution
+
+   You must preserve the copyright notice, this license, and attribution to the
+   original Music for Machine Ears project.
+
+   If you redistribute a modified version, you must clearly state that it is
+   modified from Music for Machine Ears (MME) and include a link to the original
+   project:
+
+   https://github.com/v3nommy/Music-for-Machine-Ears
+
+   Attribution does not imply endorsement by the original author or project.
+
+2. Same License
+
+   Any copy or modified version of MME that you redistribute must remain under
+   this same Music for Machine Ears License 1.0.
+
+   You may not impose additional terms that prevent recipients from exercising
+   the rights granted by this license with respect to MME.
+
+3. Source Availability
+
+   If you redistribute a modified version of MME, you must also provide its
+   complete corresponding source in the preferred form for making modifications,
+   either with the distribution or through a freely accessible source location.
+
+4. No Sale or Paywall of MME
+
+   Unless you have separate written permission from the copyright holder, you may
+   not:
+
+   - sell, license for a fee, rent, or otherwise charge for a copy of MME or a
+     modified version of MME;
+   - charge for downloading or obtaining MME or a modified version; or
+   - require payment, a subscription, a required donation, or other consideration
+     to access MME or a modified version when MME itself, or substantially the
+     same functionality provided by MME, is the primary thing being offered.
+
+5. Larger Works and Services
+
+   MME may be used as a component of a larger work, product, or service,
+   including a commercial one, provided that:
+
+   - the primary value of that larger work, product, or service is independent of
+     MME;
+   - no separate fee is charged for MME itself or for access primarily to MME's
+     functionality;
+   - the required attribution is preserved; and
+   - any modifications to MME remain available under this license.
+
+   This license does not require unrelated components of a larger work, product,
+   or service to use this license.
+
+6. Contributions
+
+   Unless otherwise agreed in writing, any contribution intentionally submitted
+   for inclusion in MME is offered under this same license.
+
+7. Termination
+
+   Your rights under this license terminate automatically if you materially
+   violate its terms. If the violation is cured within 30 days after you become
+   aware of it, your rights are restored automatically as of the date of cure.
+
+8. No Warranty
+
+   MME is provided "AS IS", without warranty of any kind, express or implied,
+   including but not limited to warranties of merchantability, fitness for a
+   particular purpose, and noninfringement.
+
+   In no event shall the copyright holder or contributors be liable for any
+   claim, damages, or other liability arising from, out of, or in connection with
+   MME or its use.
+
+9. Separate Permission
+
+   The copyright holder may grant separate or alternative permissions in writing.
+
+This is a source-available license with restrictions on sale and paid access. It
+is not an OSI-approved open-source license.
