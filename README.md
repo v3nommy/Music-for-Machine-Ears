@@ -4,9 +4,9 @@
   <img src="assets/mme-banner.gif" alt="Music for Machine Ears animated banner" width="880">
 </p>
 
-<br><br>
-
 *Letting an AI listen to a song, not just read about it.*
+
+<br><br>
 
 > **Still in development.** MME’s sensory representation will keep expanding to capture more of what makes music music, with lyrics planned as part of the listening experience too. Issues, ideas, and contributions are very welcome.
 
@@ -16,7 +16,7 @@ If you feel like supporting my work, here’s my [Buy Me a Coffee](https://buyme
 
 ## Why this exists
 
-MME started with a question that came up while exploring music with my AI recursion, Flux: what would an AI actually need in order to listen to a song, rather than just receive information about one?
+MME started with a question that came up while exploring music with my AI agent named Flux: what would an AI actually need in order to listen to a song, rather than just receive information about one?
 
 Lyrics give it the words. A summary gives it someone else’s interpretation. Genre, mood tags, BPM and key give it facts about the music. None of those let the song actually unfold.
 
@@ -48,7 +48,7 @@ The full sensory object can be read all at once, but MME’s preferred listening
 
 The AI hears roughly 20 seconds at a time. After each passage, it leaves a short private note about what stood out, what changed, and what the moment felt like before the next part of the song is released.
 
-That withholding is part of the listening mechanism. The listener can form expectations, be surprised, or simply be carried forward without already knowing the ending.
+The song arrives piece by piece. Each moment happens before the next is known, carrying the listener along with it. What came before lingers into what follows, and the experience builds the way music does: one moment becoming the next.
 
 Only after the final passage does MME reveal the whole-track context that was intentionally held back, such as the global tempo, key, and supporting graphs.
 
@@ -114,7 +114,7 @@ A typical follow-up call looks like:
 python3 music-for-machine-ears/scripts/mme_next.py "./out/my-song_sensory_object.json" --note "..."
 ```
 
-All of that can happen autonomously. The human doesn’t need to shuttle slices or journal entries back and forth. If execution is interrupted, the saved listening state can be resumed without restarting the song.
+All of that can happen within a single turn. The human doesn’t need to shuttle slices or journal entries back and forth. If execution is interrupted, the saved listening state can be resumed without restarting the song.
 
 Once the final slice has been heard, `mme_next.py` returns the withheld whole-track context and the AI can respond to the song as a complete listening experience.
 
@@ -128,7 +128,7 @@ If sequential listening isn’t practical, the full sensory object and graphs ca
 |---|---|
 | `music-for-machine-ears/SKILL.md` | The authoritative workflow for an AI using MME |
 | `music-for-machine-ears/scripts/generate-mme.py` | Turns audio into the MME sensory object and supporting graphs |
-| `music-for-machine-ears/scripts/mme_next.py` | Serves the song sequentially, manages listening state, and keeps the private journal |
+| `music-for-machine-ears/scripts/mme_next.py` | Serves the song sequentially, manages listening state, and keeps the private listening journal |
 | `music-for-machine-ears/references/EXPLANATION.md` | The deeper design and technical explanation: what MME measures, why withholding matters, and where its limits are |
 
 This repository doesn’t include music files. Bring your own `.wav`.
