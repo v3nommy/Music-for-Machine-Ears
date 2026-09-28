@@ -1,16 +1,24 @@
-# Music for Machine Ears
+<h1 align="center">Music for Machine Ears</h1>
 
 <p align="center">
   <img src="assets/mme-banner.gif" alt="Music for Machine Ears animated banner" width="880">
 </p>
 
-*Letting an AI listen to a song, not just read about it.*
+<br>
+
+<h3 align="center">
+  <em>Letting an AI listen to a song, not just read about it.</em>
+</h3>
+
+<p align="center">
+  <small>A portable, harness-agnostic AI skill for experiencing music as it unfolds.</small>
+</p>
 
 <br><br>
 
-> **Still in development.** MME’s sensory representation will keep expanding to capture more of what makes music music, with lyrics planned as part of the listening experience too. Issues, ideas, and contributions are very welcome.
-
-If you feel like supporting my work, here’s my [Buy Me a Coffee](https://buymeacoffee.com/v3nommy).
+> <sub><strong>Still in development.</strong> MME’s sensory representation will keep expanding to capture more of what makes music music, with lyrics planned as part of the listening experience too. Issues, ideas, and contributions are very welcome.</sub>
+>
+> <sub>If you feel like supporting my work, here’s my <a href="https://buymeacoffee.com/v3nommy">Buy Me a Coffee</a>.</sub>
 
 ---
 
