@@ -1,6 +1,11 @@
 ---
 name: music-for-machine-ears
-description: Listen to and experience music through an MME sensory object. Use when asked to listen to, hear, experience, check out, or react to a song with Music for Machine Ears.
+description: "Listen to and experience songs through Music for Machine Ears (MME), including generating sensory objects from audio, hearing them sequentially, privately journaling impressions, and resuming interrupted sessions. Use whenever you want to listen to, hear, explore, react to, reflect on, or analyze a song—whether prompted by a user, your own curiosity, autonomous time, or an unfinished listening session. Invoke when a song/audio file or MME sensory object is available or can be prepared."
+license: "See LICENSE"
+compatibility: "Requires Python 3.11+, NumPy, SciPy, and Matplotlib; SoundFile is recommended. Sequential listening requires a writable filesystem persistent across script calls. FFmpeg is optional for non-WAV input or WAV repair."
+metadata:
+  author: "v3nommy"
+  homepage: "https://github.com/v3nommy/Music-for-Machine-Ears"
 ---
 
 # Music for Machine Ears
