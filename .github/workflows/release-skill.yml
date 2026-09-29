@@ -171,8 +171,25 @@ jobs:
             --title "Release Smoke" \
             --artist "MME"
 
-          SENSORY="$WORK/out/test-tone_sensory_object.json"
-          test -f "$SENSORY"
+          ORIGINAL_SENSORY="$WORK/out/release-smoke-mme_sensory_object.json"
+          test -f "$ORIGINAL_SENSORY"
+          test -f "$WORK/out/release-smoke-mme_waveform.png"
+          test -f "$WORK/out/release-smoke-mme_mel_spectrogram.png"
+          test -f "$WORK/out/release-smoke-mme_rms_energy.png"
+          test -f "$WORK/out/release-smoke-mme_spectral_centroid.png"
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          sensory = Path("/tmp/mme-release-runtime/out/release-smoke-mme_sensory_object.json")
+          payload = json.loads(sensory.read_text())
+          assert payload["meta"]["slug"] == "release-smoke-mme", payload["meta"]
+          print("Canonical title+artist slug verified.")
+          PY
+
+          SENSORY="$WORK/out/renamed-sensory-object.json"
+          mv "$ORIGINAL_SENSORY" "$SENSORY"
 
           python scripts/mme_next.py \
             "$SENSORY" \
@@ -182,8 +199,10 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+
           payload = json.loads(Path("/tmp/mme-release-runtime/first.json").read_text())
           assert payload["stage"] == "slice", payload
+          assert payload["slice_count"] >= 1, payload
           assert payload.get("journal_prompt"), payload
           PY
 
@@ -196,10 +215,16 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+
           work = Path("/tmp/mme-release-runtime")
           payload = json.loads((work / "final.json").read_text())
           assert payload["stage"] == "summary", payload
           assert payload.get("final_prompt"), payload
+          graphs = payload.get("global", {}).get("graphs")
+          assert isinstance(graphs, list), payload
+          assert len(graphs) == 4, graphs
+          assert all(Path(graph).is_absolute() for graph in graphs), graphs
+          assert all(Path(graph).is_file() for graph in graphs), graphs
           assert (work / "state" / "cursor.json").is_file()
           assert (work / "state" / "journal.md").is_file()
           print("Release package runtime smoke test passed.")
