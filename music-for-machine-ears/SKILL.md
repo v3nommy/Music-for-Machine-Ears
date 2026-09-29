@@ -5,7 +5,7 @@ license: "See LICENSE"
 compatibility: "Requires Python 3.11+, NumPy, SciPy, and Matplotlib; SoundFile is recommended but optional for ordinary compatible WAV input. Sequential listening requires a writable filesystem persistent across script calls. FFmpeg is optional for non-WAV input or WAV repair."
 metadata:
   author: "v3nommy"
-  version: "0.1.2"
+  version: "1.0"
   homepage: "https://github.com/v3nommy/Music-for-Machine-Ears"
   releases: "https://github.com/v3nommy/Music-for-Machine-Ears/releases"
 ---
