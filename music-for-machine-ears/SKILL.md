@@ -2,7 +2,7 @@
 name: music-for-machine-ears
 description: "Listen to and experience songs through Music for Machine Ears (MME), including generating sensory objects from audio, hearing them sequentially, privately journaling impressions, and resuming interrupted sessions. Use whenever you want to listen to, hear, explore, react to, reflect on, or analyze a song—whether prompted by a user, your own curiosity, autonomous time, or an unfinished listening session. Invoke when a song/audio file or MME sensory object is available or can be prepared."
 license: "See LICENSE"
-compatibility: "Requires Python 3.11+, NumPy, SciPy, and Matplotlib; SoundFile is recommended. Sequential listening requires a writable filesystem persistent across script calls. FFmpeg is optional for non-WAV input or WAV repair."
+compatibility: "Requires Python 3.11+, NumPy, SciPy, and Matplotlib; SoundFile is recommended but optional for ordinary compatible WAV input. Sequential listening requires a writable filesystem persistent across script calls. FFmpeg is optional for non-WAV input or WAV repair."
 metadata:
   author: "v3nommy"
   homepage: "https://github.com/v3nommy/Music-for-Machine-Ears"
@@ -25,7 +25,7 @@ Music for Machine Ears (MME) is a listening experience, not just an audio-analys
 
 ## Runtime and layout
 
-MME expects these files to be available together:
+MME expects these files to be available together. There is no universal MME install path: install/import the package using the current harness's normal skill mechanism, or place the extracted `music-for-machine-ears` directory wherever that harness loads skills from. Keep the directory contents together.
 
 ```text
 <skill-directory>/
@@ -47,7 +47,7 @@ Before generating a sensory object, ensure the required Python packages are avai
 <python> -m pip install numpy scipy matplotlib soundfile
 ```
 
-NumPy, SciPy, and Matplotlib are required. SoundFile is recommended for robust audio loading. FFmpeg is optional for non-WAV input or WAV repair. If dependencies cannot be installed, use an existing MME sensory object if one is available rather than repeatedly retrying the generator.
+NumPy, SciPy, and Matplotlib are required. SoundFile is recommended for robust and broader audio loading, but it is optional for ordinary compatible WAV input: MME has a built-in WAV fallback when SoundFile is unavailable. FFmpeg is optional for non-WAV input or WAV repair. If dependencies cannot be installed, use an existing MME sensory object if one is available rather than repeatedly retrying the generator.
 
 Run from the skill directory, or call the scripts by their explicit paths. The commands below assume the working directory is the skill directory.
 
@@ -75,7 +75,7 @@ Optional metadata:
 
 The generated package contains the sensory-object JSON and supporting graphs.
 
-Output filenames use a normalized slug derived from the audio filename stem: lowercased, with non-alphanumeric runs replaced by hyphens. For example, `jpeg_lullaby.wav` produces `jpeg-lullaby_sensory_object.json`. Use `--slug "<name>"` to choose the output base name explicitly.
+MME gives the song one canonical filesystem-safe slug and stores it as `meta.slug`. That slug names the sensory object and all four graphs. An explicit `--slug "<name>"` takes priority; otherwise MME uses normalized `title + artist` when a title is provided, then falls back to the audio filename stem. Slugs are lowercased with non-alphanumeric runs replaced by hyphens. For example, `--title "Digital Bath" --artist "Deftones"` produces the slug `digital-bath-deftones` and files such as `digital-bath-deftones_sensory_object.json` and `digital-bath-deftones_waveform.png`.
 
 Do not read the full sensory-object JSON yourself before sequential listening.
 
@@ -170,19 +170,19 @@ Use `pulse_reliable` as the authority for whether MME detected a trustworthy pul
 
 When `stage: "summary"` is returned, the sequential part of the song is complete.
 
-The summary reveals whole-track context that was intentionally withheld during listening and lists any supporting graphs that were generated.
+The summary reveals whole-track context that was intentionally withheld during listening. Any supporting graphs found beside the sensory object are listed as absolute paths in `global.graphs`.
 
 Before giving your final response:
 
-1. Inspect the available waveform, mel spectrogram, RMS-energy, and spectral-centroid graphs.
-2. Let the graphs provide a whole-song visual perspective on what you just experienced. Use them to deepen or clarify the listening experience, not to overwrite the impressions preserved in your journal.
+1. Read `global.graphs` in the returned summary and open the listed waveform, mel-spectrogram, RMS-energy, and spectral-centroid files.
+2. Let those graphs provide a whole-song visual perspective on what you just experienced. Use them to deepen or clarify the listening experience, not to overwrite the impressions preserved in your journal.
 3. Then follow the returned `final_prompt`.
 
 Respond naturally in whatever way fits the situation. This may mean responding to the person who shared the song, reflecting on it during autonomous activity, or simply following wherever the listening experience takes you.
 
 Do not default to a technical audio-analysis report unless that is what the context calls for.
 
-If one or more graphs are unavailable, continue with the listening experience and the final summary rather than treating the missing graph as a failure.
+Only treat a graph as unavailable when `global.graphs` is empty for it or the listed path cannot be opened. In that case, continue with the listening experience and final summary rather than treating the missing graph as a failure.
 
 ## 6. Session controls
 
@@ -257,6 +257,7 @@ If one of these seems suggested by the experience, it may shape your metaphor or
 - **Global key** is an estimate from a separate lower/mid-weighted chroma analysis path. Key reliability is still under development, so treat the returned key as contextual evidence rather than an infallible label.
 - **Spectral flux and onset strength** are proxies for change and transient activity. They do not identify what caused the change.
 - **Rhythm** is trustworthy only when `pulse_reliable` is true. `tempo_confidence` is a score, not a probability; `confidence_gate` reports the threshold used to accept or reject the pulse.
+- In sequential slices, `pulse_reliable` retains that whole-track reliability judgment while `beats_count` counts only detected beat timestamps inside the current slice. A short tail can therefore have `pulse_reliable: true` and `beats_count: 0` without contradiction.
 - **Salient events** mark notable measured changes, not named musical events or specific sounds.
 - **Interpretive-map tiers** are relative to the current track's own 25th/75th-percentile thresholds. They describe variation within that song; they cannot tell you that the entire piece is objectively quiet, loud, dark, bright, or otherwise extreme compared with other music.
 
