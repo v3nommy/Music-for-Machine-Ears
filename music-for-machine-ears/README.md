@@ -16,7 +16,7 @@ MME requires:
 - SciPy
 - Matplotlib
 
-SoundFile is recommended for robust audio loading. FFmpeg is optional and is used for non-WAV input or WAV repair when needed.
+SoundFile is recommended for robust and broader audio loading, but it is optional for ordinary compatible WAV input because MME has a built-in WAV fallback. FFmpeg is optional and is used for non-WAV input or WAV repair when needed.
 
 Install the Python dependencies with:
 
@@ -27,6 +27,14 @@ python -m pip install numpy scipy matplotlib soundfile
 Use the Python 3 command appropriate to your environment, such as `python3`, `python`, or `py -3`.
 
 Sequential listening also requires a writable filesystem that persists across the script calls in a listening session.
+
+## Generated files
+
+MME gives each song one canonical filesystem-safe slug, stored as `meta.slug`, and uses it for the sensory object and all four graph filenames. An explicit `--slug` takes priority; otherwise MME uses normalized `title + artist` when a title is provided, then falls back to the audio filename stem.
+
+For example, `--title "Digital Bath" --artist "Deftones"` produces files beginning with `digital-bath-deftones_`.
+
+After sequential listening finishes, the summary exposes the absolute graph paths in `global.graphs`; the agent should open those listed files before its final response.
 
 ## Package contents
 
@@ -48,7 +56,7 @@ music-for-machine-ears/
 - `references/EXPLANATION.md` — deeper explanation of MME's design, measurements, and limitations
 - `LICENSE` — Music for Machine Ears License 1.0
 
-Keep these files together as one skill directory when installing or sharing MME.
+Keep these files together as one skill directory when installing or sharing MME. There is no universal MME install path: use your agent or harness's normal skill import/install mechanism, or place the extracted `music-for-machine-ears` directory wherever that harness loads skills from.
 
 ## Project
 
