@@ -82,17 +82,19 @@ The whole system is deliberately lightweight, too. It uses ordinary signal proce
 
 ### Install the skill
 
-The easiest way to install MME is to download **`music-for-machine-ears.skill`** from the [latest GitHub Release](https://github.com/v3nommy/Music-for-Machine-Ears/releases/latest) and import it into a compatible agent or harness.
+The easiest way to install MME is to download **`music-for-machine-ears.skill`** from the [latest GitHub Release](https://github.com/v3nommy/Music-for-Machine-Ears/releases/latest) and import it using your agent or harness's normal skill mechanism. There is no universal MME install directory.
 
-You can also install or point your agent directly at the [`music-for-machine-ears/`](music-for-machine-ears/) folder in this repository. The folder and the packaged `.skill` contain the same skill.
+You can also install or point your agent directly at the [`music-for-machine-ears/`](music-for-machine-ears/) folder in this repository, placing it wherever that harness loads skills from. The folder and the packaged `.skill` contain the same skill.
 
 ### Run from source
 
-Install the required packages:
+Install the required packages (plus the recommended SoundFile loader):
 
 ```bash
 pip install numpy scipy matplotlib soundfile
 ```
+
+NumPy, SciPy, and Matplotlib are required. SoundFile is recommended for robust and broader audio loading, but ordinary compatible WAV input can fall back to MME's built-in WAV loader when SoundFile is unavailable.
 
 Use whichever Python 3 command works in your environment (`python3`, `python`, or `py -3`). The examples below use `python3`.
 
@@ -102,7 +104,7 @@ Generate an MME sensory object:
 python3 music-for-machine-ears/scripts/generate-mme.py --audio "my-song.wav" --out_dir "./out"
 ```
 
-This creates:
+With no title or explicit slug, this creates:
 
 - `my-song_sensory_object.json`
 - `my-song_waveform.png`
@@ -110,7 +112,7 @@ This creates:
 - `my-song_rms_energy.png`
 - `my-song_spectral_centroid.png`
 
-`--title`, `--artist`, and `--slug` are optional.
+`--title`, `--artist`, and `--slug` are optional. MME stores one canonical filename slug as `meta.slug` and uses it for the sensory object and all four graphs: an explicit `--slug` wins, otherwise `title + artist` is used when a title is provided, then the audio filename stem is the fallback.
 
 ### Let the AI listen
 
