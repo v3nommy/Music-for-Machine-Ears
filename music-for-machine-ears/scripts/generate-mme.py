@@ -683,16 +683,23 @@ def filename_slug(value):
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_value).strip("-").lower()
     return slug or "song"
 
-def output_base_name(audio_path, slug=None):
-    """Use an explicit slug when supplied; otherwise derive one from the audio filename."""
+def output_base_name(audio_path, title="", artist="", slug=None):
+    """Choose one canonical filesystem-safe slug for this song and all generated artifacts."""
     if slug is not None and str(slug).strip():
         return filename_slug(slug)
+
+    clean_title = str(title).strip()
+    clean_artist = str(artist).strip()
+    if clean_title:
+        label = f"{clean_title} {clean_artist}" if clean_artist else clean_title
+        return filename_slug(label)
+
     audio_stem = os.path.splitext(os.path.basename(audio_path))[0]
     return filename_slug(audio_stem)
 
 def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
     os.makedirs(out_dir, exist_ok=True)
-    output_base = output_base_name(audio_path, slug)
+    output_base = output_base_name(audio_path, title, artist, slug)
 
     # Convert/repair as needed, then load + resample.
     y, sr = load_audio_with_fallback(audio_path)
@@ -826,6 +833,7 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
             "schema_version": "MME",
             "title": title,
             "artist": artist,
+            "slug": output_base,
             "source_file": os.path.basename(audio_path),
             "duration_s": float(round(duration_s, 3)),
             "sr_hz": int(sr),
@@ -883,7 +891,7 @@ if __name__ == "__main__":
     ap.add_argument(
         "--slug",
         default=None,
-        help="Optional output filename override; defaults to the input audio filename",
+        help="Optional canonical output-name override; otherwise uses title + artist when provided, then the input audio filename",
     )
     args = ap.parse_args()
 
