@@ -5,7 +5,9 @@ license: "See LICENSE"
 compatibility: "Requires Python 3.11+, NumPy, SciPy, and Matplotlib; SoundFile is recommended but optional for ordinary compatible WAV input. Sequential listening requires a writable filesystem persistent across script calls. FFmpeg is optional for non-WAV input or WAV repair."
 metadata:
   author: "v3nommy"
+  version: "0.1.2"
   homepage: "https://github.com/v3nommy/Music-for-Machine-Ears"
+  releases: "https://github.com/v3nommy/Music-for-Machine-Ears/releases"
 ---
 
 # Music for Machine Ears
@@ -32,7 +34,9 @@ MME expects these files to be available together. There is no universal MME inst
 ├── README.md
 ├── SKILL.md
 ├── LICENSE
+├── VERSION
 ├── scripts/
+│   ├── check_update.py
 │   ├── generate-mme.py
 │   └── mme_next.py
 └── references/
@@ -52,6 +56,24 @@ NumPy, SciPy, and Matplotlib are required. SoundFile is recommended for robust a
 Run from the skill directory, or call the scripts by their explicit paths. The commands below assume the working directory is the skill directory.
 
 `README.md` is the human-facing package overview. `references/EXPLANATION.md` is optional background for humans or agents who want the deeper technical/design rationale. Neither is required for an ordinary listening session.
+
+## Startup update check
+
+At the start of an MME invocation, run the lightweight update checker before beginning the listening workflow:
+
+```bash
+<python> scripts/check_update.py
+```
+
+The checker is advisory only. It uses the local `VERSION` file, checks GitHub at most once every 48 hours, and otherwise returns a cached result without making a network request. It uses only the Python standard library and must never block or break listening.
+
+Read the returned JSON:
+
+- If `should_notify` is `true`, briefly tell the user that a newer MME version is available, state the installed and latest versions, and ask whether they want to update now.
+- If the user wants to update, use the current harness's supported skill update/install mechanism when one exists. Otherwise direct them to the returned `release_url` for the latest package. Do **not** overwrite or self-modify the installed skill directly.
+- If `should_notify` is `false`, continue silently.
+- If the check is unavailable, disabled, times out, or cannot write its cache, continue silently. Update awareness is never a prerequisite for using MME.
+- A user or host can disable outbound update checks with `MME_UPDATE_CHECK=0`.
 
 ## 1. Prepare the sensory object
 
