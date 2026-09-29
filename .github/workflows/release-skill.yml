@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag, for example v0.2.0"
+        description: "Release tag, for example v1.1"
         required: true
         type: string
 
@@ -30,10 +30,10 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION="v0.1.2"
+            VERSION="v1.0"
           fi
 
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
             echo "Invalid release version: $VERSION"
             exit 1
           fi
@@ -257,7 +257,7 @@ jobs:
           print("Release package runtime smoke test passed.")
           PY
 
-      - name: Generate and verify SHA-256 checksum
+      - name: Generate and verify internal SHA-256 checksum
         shell: bash
         run: |
           cd dist
@@ -268,16 +268,17 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/release-notes.md <<'EOF'
-          **Music for Machine Ears (MME) ${VERSION}** adds lightweight update awareness while keeping the skill harness-agnostic and non-invasive.
+          First packaged public release of **Music for Machine Ears (MME)**.
 
-          On invocation, MME can now run a standard-library update checker that consults GitHub at most once every 48 hours, uses a local cache between checks, quietly fails open when networking is unavailable, and asks before any update action. The package also carries an explicit installed version so agents can report which MME release they are using.
+          MME is a portable, harness-agnostic AI skill for experiencing music as it unfolds. This release includes sequential listening, private listening journals, resumable sessions, sensory-object generation, supporting whole-track graphs, canonical title/artist-based output naming, and lightweight update awareness.
 
-          ### Downloads
+          When MME is invoked, its standard-library update checker can consult GitHub at most once every 48 hours, use a local cache between checks, fail open when networking is unavailable, and notify the agent when a newer release is available without self-updating or interrupting listening.
+
+          ### Download
 
           - **music-for-machine-ears.skill** — installable skill package
-          - **music-for-machine-ears.skill.sha256** — optional checksum for verifying the package
 
-          The package is built and smoke-tested on Ubuntu from the tagged source.
+          The package is built, validated, internally integrity-checked, and smoke-tested on Ubuntu from the tagged source.
           EOF
 
       - name: Publish GitHub Release
@@ -285,7 +286,6 @@ jobs:
         run: |
           gh release create "$VERSION" \
             dist/music-for-machine-ears.skill \
-            dist/music-for-machine-ears.skill.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Music for Machine Ears $VERSION" \
@@ -307,10 +307,7 @@ jobs:
           assert payload["isDraft"] is False, payload
           assert payload["isPrerelease"] is False, payload
           assets = {item["name"] for item in payload["assets"]}
-          assert assets == {
-              "music-for-machine-ears.skill",
-              "music-for-machine-ears.skill.sha256",
-          }, assets
+          assert assets == {"music-for-machine-ears.skill"}, assets
           print(payload["url"])
           print("Published release verification passed.")
           PY
