@@ -17,7 +17,7 @@ from typing import Any
 DEFAULT_API_URL = "https://api.github.com/repos/v3nommy/Music-for-Machine-Ears/releases/latest"
 CHECK_INTERVAL_SECONDS = 48 * 60 * 60
 NETWORK_TIMEOUT_SECONDS = 2.5
-VERSION_PATTERN = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+VERSION_PATTERN = re.compile(r"^v?(\d+)\.(\d+)(?:\.(\d+))?$")
 
 
 def installed_version() -> str:
@@ -28,7 +28,8 @@ def version_tuple(value: str) -> tuple[int, int, int]:
     match = VERSION_PATTERN.fullmatch(value.strip())
     if not match:
         raise ValueError(f"Unsupported version: {value!r}")
-    return tuple(int(part) for part in match.groups())
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch or 0)
 
 
 def default_cache_file() -> Path:
