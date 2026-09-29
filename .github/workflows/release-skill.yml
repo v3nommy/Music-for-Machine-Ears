@@ -30,7 +30,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION="v0.1.1"
+            VERSION="v0.1.2"
           fi
 
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -60,6 +60,28 @@ jobs:
       - name: Install validation and runtime dependencies
         run: python -m pip install --disable-pip-version-check pyyaml numpy scipy matplotlib soundfile
 
+      - name: Verify release and package versions match
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import yaml
+
+          release_version = os.environ["VERSION"].lstrip("v")
+          package_version = Path("music-for-machine-ears/VERSION").read_text(encoding="utf-8").strip()
+          skill = Path("music-for-machine-ears/SKILL.md").read_text(encoding="utf-8")
+          frontmatter = skill.split("---", 2)[1]
+          declared_version = str(yaml.safe_load(frontmatter)["metadata"]["version"])
+
+          assert release_version == package_version == declared_version, (
+              release_version,
+              package_version,
+              declared_version,
+          )
+          print(f"Release/package version verified: {release_version}")
+          PY
+
       - name: Fetch pinned Agent Skills packager
         shell: bash
         run: |
@@ -88,6 +110,8 @@ jobs:
               "music-for-machine-ears/README.md",
               "music-for-machine-ears/SKILL.md",
               "music-for-machine-ears/LICENSE",
+              "music-for-machine-ears/VERSION",
+              "music-for-machine-ears/scripts/check_update.py",
               "music-for-machine-ears/scripts/generate-mme.py",
               "music-for-machine-ears/scripts/mme_next.py",
               "music-for-machine-ears/references/EXPLANATION.md",
@@ -125,8 +149,11 @@ jobs:
 
           PKG=/tmp/mme-release-smoke/music-for-machine-ears
           python -m py_compile \
+            "$PKG/scripts/check_update.py" \
             "$PKG/scripts/generate-mme.py" \
             "$PKG/scripts/mme_next.py"
+          test "$(cat "$PKG/VERSION")" = "${VERSION#v}"
+          python "$PKG/scripts/check_update.py" --help >/dev/null
           python "$PKG/scripts/generate-mme.py" --help >/dev/null
           python "$PKG/scripts/mme_next.py" --help >/dev/null
 
@@ -241,9 +268,9 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/release-notes.md <<'EOF'
-          First packaged public release of **Music for Machine Ears (MME)**.
+          **Music for Machine Ears (MME) ${VERSION}** adds lightweight update awareness while keeping the skill harness-agnostic and non-invasive.
 
-          MME is a portable, harness-agnostic AI skill for experiencing music as it unfolds. This release includes sequential listening, private listening journals, resumable sessions, sensory-object generation, and supporting whole-track graphs.
+          On invocation, MME can now run a standard-library update checker that consults GitHub at most once every 48 hours, uses a local cache between checks, quietly fails open when networking is unavailable, and asks before any update action. The package also carries an explicit installed version so agents can report which MME release they are using.
 
           ### Downloads
 
