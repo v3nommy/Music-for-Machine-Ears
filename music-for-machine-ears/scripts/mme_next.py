@@ -125,14 +125,17 @@ def make_slice(obj, index, seconds):
     }
 
 
-def graph_refs(input_path):
-    suffix = "_sensory_object.json"
-    base = input_path.name[:-len(suffix)] if input_path.name.endswith(suffix) else input_path.stem
+def graph_refs(obj, input_path):
+    """Resolve generated graph files from the sensory object's canonical song slug."""
+    slug = str(obj.get("meta", {}).get("slug") or "").strip()
+    if not slug:
+        return []
+
     names = [
-        f"{base}_waveform.png",
-        f"{base}_mel_spectrogram.png",
-        f"{base}_rms_energy.png",
-        f"{base}_spectral_centroid.png",
+        f"{slug}_waveform.png",
+        f"{slug}_mel_spectrogram.png",
+        f"{slug}_rms_energy.png",
+        f"{slug}_spectral_centroid.png",
     ]
     return [str((input_path.parent / name).resolve()) for name in names if (input_path.parent / name).exists()]
 
@@ -150,6 +153,7 @@ def make_summary(obj, input_path, journal_path):
             "title": meta.get("title"),
             "artist": meta.get("artist"),
             "source_file": meta.get("source_file"),
+            "slug": meta.get("slug"),
             "estimated_key": meta.get("estimated_key"),
             "key_method": meta.get("key_method"),
             "rhythm": {
@@ -162,13 +166,15 @@ def make_summary(obj, input_path, journal_path):
                 "note": rhythm.get("note"),
             },
             "interpretive_map": obj.get("interpretive_map"),
-            "graphs": graph_refs(input_path),
+            "graphs": graph_refs(obj, input_path),
         },
         "journal_path": str(journal_path),
         "final_prompt": (
-            "You have now listened to the whole song. Before responding, inspect any available supporting graphs "
-            "listed above for a whole-song visual perspective; use them to deepen or clarify the experience, not "
-            "to overwrite the impressions formed while listening. Then respond naturally in whatever way fits the "
+            "You have now listened to the whole song. Before responding, inspect the supporting graph files whose "
+            "absolute paths are listed in global.graphs. Open those files for a whole-song visual perspective and use "
+            "them to deepen or clarify the experience, not to overwrite the impressions formed while listening. If "
+            "global.graphs is empty, or a listed file cannot be opened, continue without that graph. Then respond "
+            "naturally in whatever way fits the "
             "context—whether that means responding to the person who shared it with you, reflecting on it for "
             "yourself, or simply following wherever the experience takes you. Let your response come from what you "
             "actually heard and experienced rather than turning it into a technical analysis unless that fits the moment."
