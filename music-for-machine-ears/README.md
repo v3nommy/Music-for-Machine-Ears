@@ -28,6 +28,12 @@ Use the Python 3 command appropriate to your environment, such as `python3`, `py
 
 Sequential listening also requires a writable filesystem that persists across the script calls in a listening session.
 
+## Update awareness
+
+MME includes a small standard-library update checker. When the skill is invoked, the agent can run `scripts/check_update.py`; it contacts the project's latest GitHub release at most once every 48 hours and otherwise uses a local cache. If a newer version is found, the agent can let the user know and ask whether they want to update.
+
+The checker is advisory and fail-open: lack of internet access, a timeout, or an unwritable cache never prevents MME from working. Set `MME_UPDATE_CHECK=0` to disable outbound update checks.
+
 ## Generated files
 
 MME gives each song one canonical filesystem-safe slug, stored as `meta.slug`, and uses it for the sensory object and all four graph filenames. An explicit `--slug` takes priority; otherwise MME uses normalized `title + artist` when a title is provided, then falls back to the audio filename stem.
@@ -43,7 +49,9 @@ music-for-machine-ears/
 ├── README.md
 ├── SKILL.md
 ├── LICENSE
+├── VERSION
 ├── scripts/
+│   ├── check_update.py
 │   ├── generate-mme.py
 │   └── mme_next.py
 └── references/
@@ -51,6 +59,8 @@ music-for-machine-ears/
 ```
 
 - `SKILL.md` — authoritative instructions for the agent
+- `VERSION` — installed MME package version
+- `scripts/check_update.py` — lightweight cached check for newer GitHub releases
 - `scripts/generate-mme.py` — generates the MME sensory object and supporting graphs
 - `scripts/mme_next.py` — serves the song sequentially and manages listening state/private journaling
 - `references/EXPLANATION.md` — deeper explanation of MME's design, measurements, and limitations
