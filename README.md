@@ -1,7 +1,7 @@
 <h1 align="center">Music for Machine Ears</h1>
 
 <p align="center">
-  <img src="assets/mme-banner.gif" alt="Music for Machine Ears animated banner" width="880">
+  <img src="https://raw.githubusercontent.com/v3nommy/.github/main/assets/mme-banner.gif" alt="Music for Machine Ears animated banner" width="880">
 </p>
 
 <br>
