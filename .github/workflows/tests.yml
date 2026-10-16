@@ -1,0 +1,27 @@
+name: MME tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install ordinary MME and test dependencies only
+        run: python -m pip install numpy scipy matplotlib soundfile pytest
+      - name: Run tests without downloading separation models
+        run: python -m pytest -q tests

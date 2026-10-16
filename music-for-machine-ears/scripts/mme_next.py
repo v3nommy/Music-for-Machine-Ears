@@ -2,6 +2,7 @@
 """Sequential listening delivery for an existing MME sensory object."""
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -125,6 +126,35 @@ def make_slice(obj, index, seconds):
     }
 
 
+def lyrics_for_window(obj, start, end, last):
+    """Return only lyric lines beginning in the currently released window."""
+    lyrics = obj.get("lyrics")
+    if not lyrics:
+        return None
+    lines = lyrics.get("lines", [])
+    visible = [
+        line for line in lines
+        if in_window(float(line.get("time_s", -1)), start, end, last)
+    ]
+    return {
+        "format": lyrics.get("format", "lrc"),
+        "lines": visible,
+    }
+
+
+def add_slice_lyrics(payload, obj, index, total, reveal):
+    window = payload["time_range_s"]
+    if not reveal:
+        return payload
+    payload["lyrics"] = lyrics_for_window(
+        obj,
+        float(window["start"]),
+        float(window["end"]),
+        index == total - 1,
+    )
+    return payload
+
+
 def graph_refs(obj, input_path):
     """Resolve generated graph files from the sensory object's canonical song slug."""
     slug = str(obj.get("meta", {}).get("slug") or "").strip()
@@ -166,6 +196,7 @@ def make_summary(obj, input_path, journal_path):
                 "note": rhythm.get("note"),
             },
             "interpretive_map": obj.get("interpretive_map"),
+            **({"lyrics": obj["lyrics"]} if "lyrics" in obj else {}),
             "graphs": graph_refs(obj, input_path),
         },
         "journal_path": str(journal_path),
@@ -202,6 +233,11 @@ def main():
     )
     ap.add_argument("--reset", action="store_true")
     ap.add_argument("--show-journal", action="store_true")
+    ap.add_argument(
+        "--reveal-lyrics",
+        action="store_true", default=None,
+        help="Reveal only the lyric lines in each released slice; otherwise lyrics stay sealed until summary.",
+    )
     args = ap.parse_args()
 
     if args.resume and (args.note is not None or args.reset or args.show_journal):
@@ -212,7 +248,9 @@ def main():
         raise SystemExit(f"Sensory object file not found: {input_path}")
     if args.slice_seconds <= 0:
         raise SystemExit("--slice-seconds must be greater than zero.")
-    obj = read_json(input_path)
+    input_bytes = input_path.read_bytes()
+    input_digest = hashlib.sha256(input_bytes).hexdigest()
+    obj = json.loads(input_bytes)
     if "meta" not in obj or "time_series_1hz" not in obj:
         raise SystemExit("Input does not look like an MME sensory object.")
 
@@ -248,12 +286,31 @@ def main():
         if not journal_path.exists():
             journal_path.write_text("# MME Listening Journal\n\n", encoding="utf-8")
 
+    if state.get("input_sha256", input_digest) != input_digest:
+        raise SystemExit("Sensory object changed since this session began. Use --reset.")
+    state["input_sha256"] = input_digest
+
+    # Persist the disclosure mode; an omitted flag inherits it on resume/advance.
+    saved_reveal = state.get("reveal_lyrics", False)
+    if args.reveal_lyrics is not None and args.reveal_lyrics != saved_reveal and state.get("next_slice_index", 0):
+        raise SystemExit("Lyric disclosure mode changed. Use a separate state directory or --reset.")
+    args.reveal_lyrics = saved_reveal if args.reveal_lyrics is None else args.reveal_lyrics
+    state["reveal_lyrics"] = args.reveal_lyrics
+    write_json(cursor_path, state)
+
     if state["complete"]:
         emit(make_summary(obj, input_path, journal_path))
 
     if args.resume:
         if state["awaiting_note"] and state.get("last_slice_index") is not None:
             payload = make_slice(obj, int(state["last_slice_index"]), args.slice_seconds)
+            payload = add_slice_lyrics(
+                payload,
+                obj,
+                int(state["last_slice_index"]),
+                int(state["slice_count"]),
+                args.reveal_lyrics,
+            )
             payload["resumed"] = True
             payload["resume_message"] = (
                 "Replayed the pending slice without advancing. Form the private listening note from this slice, "
@@ -292,6 +349,13 @@ def main():
         emit(make_summary(obj, input_path, journal_path))
 
     payload = make_slice(obj, index, args.slice_seconds)
+    payload = add_slice_lyrics(
+        payload,
+        obj,
+        index,
+        int(state["slice_count"]),
+        args.reveal_lyrics,
+    )
     state.update(last_slice_index=index, next_slice_index=index + 1, awaiting_note=True)
     write_json(cursor_path, state)
     emit(payload)

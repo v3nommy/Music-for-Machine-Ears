@@ -16,7 +16,7 @@
 
 <br><br>
 
-> <sub><strong>Still in development.</strong> MME’s sensory representation will keep expanding to capture more of what makes music music, with lyrics planned as part of the listening experience too. Issues, ideas, and contributions are very welcome.</sub>
+> <sub><strong>Still in development.</strong> MME’s sensory representation will keep expanding to capture more of what makes music music. Optional supplied LRC lyrics can now accompany the listening experience. Issues, ideas, and contributions are very welcome.</sub>
 >
 > <sub>If you feel like supporting my work, here’s my <a href="https://buymeacoffee.com/v3nommy">Buy Me a Coffee</a>.</sub>
 
@@ -68,7 +68,7 @@ That leaves the AI with something useful: a listening journal made from impressi
 
 MME doesn’t claim an AI hears exactly the way a human does. And it doesn’t capture everything that makes music music.
 
-Lyrics aren’t represented yet. Neither are exact melody, instrument identity, vocal character, chord voicings, or every production detail a human ear might notice.
+MME does not transcribe or verify sung words. You can supply timed lyrics in an LRC file, but their text and timing come from that file, not from audio recognition. Exact melody, instrument identity, vocal character, chord voicings, and many production details remain outside the representation.
 
 What MME does try to do is stay grounded in the audio it actually has.
 
@@ -140,6 +140,40 @@ If sequential listening isn’t practical, the full sensory object and graphs ca
 
 ---
 
+## Optional timed lyrics
+
+Already have an `.lrc` file for the recording? Pass it alongside the audio:
+
+```bash
+python3 music-for-machine-ears/scripts/generate-mme.py --audio "my-song.wav" --lyrics "my-song.lrc" --out_dir "./out"
+```
+
+**No additional packages, model downloads, API keys, or GPU are needed for LRC
+support.** This feature reads a file you supply. It does not search lyric
+services, transcribe audio, or prove that the recording matches the words.
+Use an LRC timed for the actual recording; alternate/live versions may differ.
+
+Choose how to listen:
+
+- **Blind first (default):** ordinary sequential listening withholds the text;
+  the final summary reveals the supplied lyrics after the last private note.
+- **Words alongside music:** start the session with `--reveal-lyrics` to reveal
+  only lines whose timestamps fall inside each released slice. Future lines
+  remain hidden, and the choice persists when resuming.
+
+```bash
+python3 music-for-machine-ears/scripts/mme_next.py "./out/my-song_sensory_object.json" --reveal-lyrics
+```
+
+The flag chooses the session's disclosure mode, not a way to jump ahead. To
+change modes for an existing listen, start a new state directory or explicitly
+reset. Credits/annotations are retained separately from likely lyric lines;
+classification is heuristic. A supplied first-lyric timestamp is not detected
+vocal onset. The skill instructions document these limits and session controls.
+
+Keep copyrighted lyrics and private listening journals out of shared test
+fixtures and public output unless you have permission to share them.
+
 ## Files
 
 | File | What it’s for |
@@ -147,6 +181,7 @@ If sequential listening isn’t practical, the full sensory object and graphs ca
 | `music-for-machine-ears/SKILL.md` | The authoritative workflow for an AI using MME |
 | `music-for-machine-ears/scripts/generate-mme.py` | Turns audio into the MME sensory object and supporting graphs |
 | `music-for-machine-ears/scripts/mme_next.py` | Serves the song sequentially, manages listening state, and keeps the private listening journal |
+| `music-for-machine-ears/scripts/lyrics.py` | Parses supplied LRC text/timing without audio recognition or new dependencies |
 | `music-for-machine-ears/references/EXPLANATION.md` | The deeper design and technical explanation: what MME measures, why withholding matters, and where its limits are |
 
 This repository doesn’t include music files. Bring your own `.wav`.

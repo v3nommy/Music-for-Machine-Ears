@@ -38,6 +38,7 @@ MME expects these files to be available together. There is no universal MME inst
 ├── scripts/
 │   ├── check_update.py
 │   ├── generate-mme.py
+│   ├── lyrics.py
 │   └── mme_next.py
 └── references/
     └── EXPLANATION.md
@@ -100,6 +101,22 @@ The generated package contains the sensory-object JSON and supporting graphs.
 MME gives the song one canonical filesystem-safe slug and stores it as `meta.slug`. That slug names the sensory object and all four graphs. An explicit `--slug "<name>"` takes priority; otherwise MME uses normalized `title + artist` when a title is provided, then falls back to the audio filename stem. Slugs are lowercased with non-alphanumeric runs replaced by hyphens. For example, `--title "Digital Bath" --artist "Deftones"` produces the slug `digital-bath-deftones` and files such as `digital-bath-deftones_sensory_object.json` and `digital-bath-deftones_waveform.png`.
 
 Do not read the full sensory-object JSON yourself before sequential listening.
+
+Timed lyrics are optional. Attach an LRC file when generating the sensory
+object with `--lyrics "<lyrics-path>.lrc"`. Lyrics remain sealed during
+ordinary sequential listening and appear in the final summary. To opt into
+passage-local lyric delivery, add `--reveal-lyrics` to the first `mme_next.py`
+call; the saved mode is inherited, including on `--resume`. Only candidate lines
+timestamped inside the current passage are returned; source identity and global
+onset metadata remain sealed. Mode changes require reset or a separate state.
+`lyrics.lyric_onset_s` is supplied LRC timing, not detected voice. The parser
+labels plausible unmarked text as lyric candidates, excludes recognized credits
+and annotations, and cannot verify whether any text is actually sung.
+
+The user supplies the LRC file. No LRCLIB/web fetching, transcription, extra
+model, or extra dependency is implemented for lyrics. Do not read the LRC file
+before sequential listening; pass its path to the generator. Disclosure is a
+reader convention, not encryption: the full lyrics are stored in the JSON.
 
 ## 2. Choose listening state location
 
@@ -262,7 +279,7 @@ MME gives you some aspects of the audio directly, some only as measured proxies,
 
 MME does not currently provide:
 
-- exact lyrics or spoken words
+- exact lyrics or spoken words inferred from audio (supplied LRC text may be delivered under the chosen disclosure mode, but is not audio-verified)
 - melody as a line or hummable tune
 - instrument identity
 - vocal character

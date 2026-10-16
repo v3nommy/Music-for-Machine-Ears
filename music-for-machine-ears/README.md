@@ -42,6 +42,51 @@ For example, `--title "Digital Bath" --artist "Deftones"` produces files beginni
 
 After sequential listening finishes, the summary exposes the absolute graph paths in `global.graphs`; the agent should open those listed files before its final response.
 
+Timed lyrics can be attached without changing the default blind-listening mode:
+
+```bash
+python music-for-machine-ears/scripts/generate-mme.py --audio "my-song.wav" --lyrics "my-song.lrc" --out_dir "./out"
+```
+
+The optional `lyrics` object includes `lyric_onset_s`: the first supplied timed
+**lyric candidate**, not detected singing. Credits recognized by labels or exact
+LRC title/artist/album/by metadata are excluded from `lines`; all timed text and
+its classification remain in `timed_text`. Bracketed/parenthesized annotations
+are `unknown`. Unmarked credits can still be mistaken for lyrics, and sung
+parentheticals can be excluded. `first_timed_text_kind` makes the distinction
+explicit; `first_timed_text_is_sung` is always null because text alone cannot
+verify singing. Credit-only/annotation-only files return null onset. Files with
+no valid timed text fail clearly; an omitted `--lyrics` adds no lyric object.
+
+The last valid `[offset:milliseconds]` applies to the entire file, even at the
+end, and is **added** to timestamps; negative results clamp to zero. Fractions
+`.5`, `.50`, `.500` all mean half a second. Seconds must be below 60; hours-form
+minutes must also be below 60. Plain minute counts may exceed 59. Only leading
+timestamp tags are parsed; enhanced inline word timing is not supported. No
+alignment with audio, duration correction, translation, or transcription occurs.
+
+`mme_next.py` seals full lyrics, onset metadata, classifications and source
+identity until summary. `--reveal-lyrics` reveals only candidate lines in the
+current window, never the LRC filename or global onset. Windows are `[start,end)`;
+the last includes the endpoint. Choose disclosure mode on the first call; it is
+saved and inherited by subsequent calls and `--resume`. Changing a blind session
+to reveal mode requires `--reset` or a separate state directory. Resume also
+rejects a modified sensory object (legacy cursors acquire a hash on first use).
+
+The user supplies the LRC file; no LRCLIB/web fetching, transcription, extra
+model, or extra dependency is implemented here. Lyrics do not alter the audio
+measurements. Keep supplied music and lyrics outside the repository; tests use
+synthetic text and audio only. Sealing is a reader disclosure convention, not
+encryption: the full lyrics remain in the sensory-object JSON.
+
+For passage-local delivery, start with:
+
+```bash
+python music-for-machine-ears/scripts/mme_next.py "./out/my-song_sensory_object.json" --reveal-lyrics
+```
+
+Continue with the normal `--note` workflow; the saved disclosure mode persists.
+
 ## Package contents
 
 ```text
@@ -53,6 +98,7 @@ music-for-machine-ears/
 ├── scripts/
 │   ├── check_update.py
 │   ├── generate-mme.py
+│   ├── lyrics.py
 │   └── mme_next.py
 └── references/
     └── EXPLANATION.md
@@ -63,6 +109,7 @@ music-for-machine-ears/
 - `scripts/check_update.py` — lightweight cached check for newer GitHub releases
 - `scripts/generate-mme.py` — generates the MME sensory object and supporting graphs
 - `scripts/mme_next.py` — serves the song sequentially and manages listening state/private journaling
+- `scripts/lyrics.py` — parses timed LRC lyrics without external dependencies
 - `references/EXPLANATION.md` — deeper explanation of MME's design, measurements, and limitations
 - `LICENSE` — Music for Machine Ears License 1.0
 

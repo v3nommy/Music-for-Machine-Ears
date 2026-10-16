@@ -6,6 +6,11 @@ import matplotlib.pyplot as plt
 
 from scipy import signal, ndimage
 
+try:
+    from lyrics import parse_lrc
+except ImportError:  # pragma: no cover - supports package-style imports
+    from scripts.lyrics import parse_lrc
+
 # Optional (preferred) WAV reading:
 try:
     import soundfile as sf
@@ -697,7 +702,12 @@ def output_base_name(audio_path, title="", artist="", slug=None):
     audio_stem = os.path.splitext(os.path.basename(audio_path))[0]
     return filename_slug(audio_stem)
 
-def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
+def generate_mme(audio_path, out_dir, title="", artist="", slug=None, *, lyrics_path=None):
+    # Validate supplied timing before audio loading or creating output files.
+    try:
+        lyrics = parse_lrc(lyrics_path) if lyrics_path is not None else None
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Cannot load --lyrics {lyrics_path!s}: {exc}. Supply a readable UTF-8 LRC file with valid timestamps.") from exc
     os.makedirs(out_dir, exist_ok=True)
     output_base = output_base_name(audio_path, title, artist, slug)
 
@@ -868,6 +878,8 @@ def generate_mme(audio_path, out_dir, title="", artist="", slug=None):
         },
         "interpretive_map": interpretive,
     }
+    if lyrics is not None:
+        obj["lyrics"] = lyrics
 
     json_path = os.path.join(out_dir, f"{output_base}_sensory_object.json")
     with open(json_path, "w", encoding="utf-8") as f:
@@ -893,7 +905,15 @@ if __name__ == "__main__":
         default=None,
         help="Optional canonical output-name override; otherwise uses title + artist when provided, then the input audio filename",
     )
+    ap.add_argument(
+        "--lyrics",
+        default=None,
+        help="Optional timed LRC lyrics file. Lyrics are stored but withheld during sequential listening by default.",
+    )
     args = ap.parse_args()
 
-    out = generate_mme(args.audio, args.out_dir, args.title, args.artist, args.slug)
+    try:
+        out = generate_mme(args.audio, args.out_dir, args.title, args.artist, args.slug, lyrics_path=args.lyrics)
+    except ValueError as exc:
+        ap.error(str(exc))
     print("Wrote:", out)
